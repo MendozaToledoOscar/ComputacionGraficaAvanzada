@@ -51,6 +51,7 @@ Shader shaderMulLighting;
 std::shared_ptr<FirstPersonCamera> camera(new FirstPersonCamera());
 
 Sphere skyboxSphere(20, 20);
+Sphere esfera1(50, 50);
 Box boxCesped;
 Box boxWalls;
 Box boxHighway;
@@ -81,7 +82,7 @@ Model modelDartLegoRightHand;
 Model modelDartLegoLeftLeg;
 Model modelDartLegoRightLeg;
 
-GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID; //, textureLandingPadID;
+GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint skyboxTextureID;
 
 GLenum types[6] = {
@@ -217,6 +218,11 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	skyboxSphere.init();
 	skyboxSphere.setShader(&shaderSkybox);
 	skyboxSphere.setScale(glm::vec3(20.0f, 20.0f, 20.0f));
+
+	esfera1.init();
+	esfera1.setShader(&shaderMulLighting);
+	esfera1.setScale(glm::vec3(4.0f, 4.0f, 4.0f));
+	esfera1.setPosition(glm::vec3(1.0f, 4.0f, -6.0f));
 
 	boxCesped.init();
 	boxCesped.setShader(&shaderMulLighting);
@@ -439,6 +445,37 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		// Generan los niveles del mipmap (OpenGL es el ecargado de realizarlos)
 		glGenerateMipmap(GL_TEXTURE_2D);
 	} else
+		std::cout << "Failed to load texture" << std::endl;
+	// Libera la memoria de la textura
+	textureHighway.freeImage(bitmap);
+
+	// Definir la textura a utilizar de la pista de aterrizaje
+	Texture textureLandingPad("../Textures/landingPad.jpg");
+	// Carga el mapa de bits
+	bitmap = textureLandingPad.loadImage();
+	// Convertir el mapa de bits en un arreglo unidimensional
+	data = textureLandingPad.convertToData(bitmap, imageWidth, imageHeight);
+	// Crear la textura con id n
+	glGenTextures(1, &textureLandingPadID);
+	// Enlazar la textura a un tipo de textura en 2D
+	glBindTexture(GL_TEXTURE_2D, textureLandingPadID);
+	// Configurar wrapping de la textura
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// Verifica si se pudo abrir la textura
+	if (data) {
+		// Transferir los datos de la imagen a memoria
+		// Argumentos: Tipo de textura, Mipmaps, Formato interno de openGL, ancho, alto, Referencia Mipmaps,
+		// Formato interno de la libreria de la imagen, el tipo de dato y al apuntador a los datos
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
+			GL_BGRA, GL_UNSIGNED_BYTE, data);
+		// OpenGL genera los niveles de mipmap
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else
 		std::cout << "Failed to load texture" << std::endl;
 	// Libera la memoria de la textura
 	textureHighway.freeImage(bitmap);
@@ -827,6 +864,20 @@ void applicationLoop() {
 		boxHighway.setPosition(glm::vec3(0.0, 0.05, -35.0));
 		boxHighway.setOrientation(glm::vec3(0.0, 0.0, 0.0));
 		boxHighway.render();
+		//Esfera1
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, textureLandingPadID);
+		boxLandingPad.setScale(glm::vec3(10.0f, 0.05f, 10.0f));
+		boxLandingPad.setPosition(glm::vec3(5.0f, 0.05f, -5.0f));
+		boxLandingPad.render();
+		glBindTexture(GL_TEXTURE_2D, 0);
+		//Esfera1
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, textureHighwayID);
+		esfera1.setScale(glm::vec3(2.0f, 2.0f, 2.0f));
+		esfera1.setPosition(glm::vec3(7.0f, 4.0f, -6.0f));
+		esfera1.render();
+		glBindTexture(GL_TEXTURE_2D, 0);
 
 		/*******************************************
 		 * Custom objects obj
