@@ -81,6 +81,8 @@ Model modelDartLegoRightHand;
 Model modelDartLegoLeftLeg;
 Model modelDartLegoRightLeg;
 // Model animate instance
+//Trex
+Model modelTrex;
 // Mayow
 Model mayowModelAnimate;
 // Modelo Buzz
@@ -115,12 +117,12 @@ GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
 GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
 GL_TEXTURE_CUBE_MAP_NEGATIVE_Z };
 
-std::string fileNames[6] = { "../Textures/mp_bloodvalley/blood-valley_ft.tga",
-		"../Textures/mp_bloodvalley/blood-valley_bk.tga",
-		"../Textures/mp_bloodvalley/blood-valley_up.tga",
-		"../Textures/mp_bloodvalley/blood-valley_dn.tga",
-		"../Textures/mp_bloodvalley/blood-valley_rt.tga",
-		"../Textures/mp_bloodvalley/blood-valley_lf.tga" };
+std::string fileNames[6] = { "../Textures/grass_skybox/sh_ft.png",
+		"../Textures/grass_skybox/sh_bk.png",
+		"../Textures/grass_skybox/sh_up.png",
+		"../Textures/grass_skybox/sh_dn.png",
+		"../Textures/grass_skybox/sh_rt.png",
+		"../Textures/grass_skybox/sh_lf.png" };
 
 bool exitApp = false;
 int lastMousePosX, offsetX = 0;
@@ -135,10 +137,13 @@ glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
 glm::mat4 modelMatrixDart = glm::mat4(1.0f);
 glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
 glm::mat4 modelMatrixBuzz = glm::mat4(1.0f);
+glm::mat4 modelMatrixTrex = glm::mat4(1.0f);
 
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
 float rotBuzzArmLeft = 0.0, rotBuzzForeArmLeft = 0.0, rotBuzzHandLeft = 0.0, rotBuzzArmRight = 0.0, rotBuzzForeArmRight = 0.0, rotBuzzHandRight = 0.0, rotBuzzHead = 0.0;
 int modelSelected = 0;
+int animTrexSel = 0;
+bool mov_Trex_U = false, mov_Trex_D = false, mov_Trex_L = false, mov_Trex_R = false;
 bool enableCountSelected = true;
 
 // Variables to animations keyframes
@@ -309,6 +314,10 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	modelDartLegoLeftLeg.setShader(&shaderMulLighting);
 	modelDartLegoRightLeg.loadModel("../models/LegoDart/LeoDart_right_leg.obj");
 	modelDartLegoRightLeg.setShader(&shaderMulLighting);
+
+	//Trex
+	modelTrex.loadModel("../models/Trex/trex.fbx");
+	modelTrex.setShader(&shaderMulLighting);
 
 	//Mayow
 	mayowModelAnimate.loadModel("../models/mayow/personaje2.fbx");
@@ -646,7 +655,7 @@ bool processInput(bool continueApplication) {
 	if (enableCountSelected && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS){
 		enableCountSelected = false;
 		modelSelected++;
-		if(modelSelected > 4)
+		if(modelSelected > 5)
 			modelSelected = 0;
 		if(modelSelected == 1)
 			fileName = "../animaciones/animation_dart_joints.txt";
@@ -745,6 +754,37 @@ bool processInput(bool continueApplication) {
 	if (modelSelected == 4 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 		modelMatrixBuzz = glm::rotate(modelMatrixBuzz, -0.02f, glm::vec3(0, 1, 0));
 
+	//Movimiento Trex
+	if (modelSelected == 5 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+		modelMatrixTrex = glm::translate(modelMatrixTrex, glm::vec3(0.0, 0.0, -0.1));
+		mov_Trex_D = true;
+	}
+	else
+		mov_Trex_D = false;
+	if (modelSelected == 5 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+		modelMatrixTrex = glm::translate(modelMatrixTrex, glm::vec3(0.0, 0.0, 0.1));
+		mov_Trex_U = true;
+	}
+	else
+		mov_Trex_U = false;
+	if (modelSelected == 5 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+		modelMatrixTrex = glm::rotate(modelMatrixTrex, 0.02f, glm::vec3(0, 1, 0));
+		mov_Trex_L = true;
+	}
+	else
+		mov_Trex_L = false;
+	if (modelSelected == 5 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+		modelMatrixTrex = glm::rotate(modelMatrixTrex, -0.02f, glm::vec3(0, 1, 0));
+		mov_Trex_R = true;
+	}
+	else
+		mov_Trex_R = false;
+	if (mov_Trex_D || mov_Trex_U || mov_Trex_L || mov_Trex_R)
+		animTrexSel = 1;
+	else 
+		animTrexSel = 0;
+	
+	
 	if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
 		glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
 		rotBuzzHead += 0.02;
@@ -763,6 +803,8 @@ bool processInput(bool continueApplication) {
 	else if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
 		glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
 		rotBuzzArmRight -= 0.02;
+	
+	
 
 	glfwPollEvents();
 	return continueApplication;
@@ -1093,7 +1135,6 @@ void applicationLoop() {
 		glm::mat4 modelMatrixBuzzRightHand = glm::mat4(modelMatrixBuzzRightForeArm);
 		buzzHandRight.render(modelMatrixBuzzRightHand);
 
-		
 		/*******************************************
 		 * Custom Anim objects obj
 		 *******************************************/
@@ -1101,6 +1142,12 @@ void applicationLoop() {
 		modelMatrixMayowBody = glm::scale(modelMatrixMayowBody, glm::vec3(0.021, 0.021, 0.021));
 		mayowModelAnimate.setAnimationIndex(0);
 		mayowModelAnimate.render(modelMatrixMayowBody);
+
+		//Trex
+		glm::mat4 modelMatrixTrexBody = glm::mat4(modelMatrixTrex);
+		modelMatrixTrexBody = glm::scale(modelMatrixTrexBody, glm::vec3(0.01, 0.01, 0.01));
+		modelTrex.setAnimationIndex(animTrexSel);
+		modelTrex.render(modelMatrixTrexBody);
 
 		/*******************************************
 		 * Skybox
