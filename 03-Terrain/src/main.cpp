@@ -77,11 +77,18 @@ Model modelDartLegoLeftHand;
 Model modelDartLegoRightHand;
 Model modelDartLegoLeftLeg;
 Model modelDartLegoRightLeg;
+
+//Cowboy
+Model cowboyModelAnimate;
+
+//Trex
+Model modelTrex;
+
 // Model animate instance
 // Mayow
 Model mayowModelAnimate;
 // Terrain model instance
-Terrain terrain(-1, -1, 200, 8, "../Textures/heightmap.png");
+Terrain terrain(-1, -1, 200, 40, "../Textures/Mapa_Alturas.png");
 
 GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint skyboxTextureID;
@@ -112,6 +119,8 @@ glm::mat4 modelMatrixLambo = glm::mat4(1.0);
 glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
 glm::mat4 modelMatrixDart = glm::mat4(1.0f);
 glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
+glm::mat4 modelMatrixTrex = glm::mat4(1.0f);
+glm::mat4 modelMatrixCowboy = glm::mat4(1.0f);
 
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
 int modelSelected = 0;
@@ -136,6 +145,10 @@ int indexFrameDartNext = 1;
 float interpolationDart = 0.0;
 int maxNumPasosDart = 200;
 int numPasosDart = 0;
+
+//Variables Trex
+int animTrexSel = 0;
+bool mov_Trex_U = false, mov_Trex_D = false, mov_Trex_L = false, mov_Trex_R = false;
 
 // Var animate helicopter
 float rotHelHelY = 0.0;
@@ -273,6 +286,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	//Mayow
 	mayowModelAnimate.loadModel("../models/mayow/personaje2.fbx");
 	mayowModelAnimate.setShader(&shaderMulLighting);
+
+	//Cowboy
+	cowboyModelAnimate.loadModel("../models/cowboy/Character Running.fbx");
+	cowboyModelAnimate.setShader(&shaderMulLighting);
+
+	//Trex
+	modelTrex.loadModel("../models/Trex/trex.fbx");
+	modelTrex.setShader(&shaderMulLighting);
 
 	camera->setPosition(glm::vec3(0.0, 3.0, 4.0));
 
@@ -584,7 +605,7 @@ bool processInput(bool continueApplication) {
 	if (enableCountSelected && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS){
 		enableCountSelected = false;
 		modelSelected++;
-		if(modelSelected > 2)
+		if (modelSelected > 4)
 			modelSelected = 0;
 		if(modelSelected == 1)
 			fileName = "../animaciones/animation_dart_joints.txt";
@@ -670,6 +691,46 @@ bool processInput(bool continueApplication) {
 	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
 		modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(0.02, 0.0, 0.0));
 
+	//Movimiento Cowboy
+	if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+		modelMatrixCowboy = glm::rotate(modelMatrixCowboy, 0.02f, glm::vec3(0, 1, 0));
+	else if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+		modelMatrixCowboy = glm::rotate(modelMatrixCowboy, -0.02f, glm::vec3(0, 1, 0));
+	if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+		modelMatrixCowboy = glm::translate(modelMatrixCowboy, glm::vec3(0.0, 0.0, 0.05));
+	else if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+		modelMatrixCowboy = glm::translate(modelMatrixCowboy, glm::vec3(0.0, 0.0, -0.05));
+
+	//Movimiento Trex
+	if (modelSelected == 4 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+		modelMatrixTrex = glm::translate(modelMatrixTrex, glm::vec3(0.0, 0.0, -0.1));
+		mov_Trex_D = true;
+	}
+	else
+		mov_Trex_D = false;
+	if (modelSelected == 4 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+		modelMatrixTrex = glm::translate(modelMatrixTrex, glm::vec3(0.0, 0.0, 0.1));
+		mov_Trex_U = true;
+	}
+	else
+		mov_Trex_U = false;
+	if (modelSelected == 4 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+		modelMatrixTrex = glm::rotate(modelMatrixTrex, 0.02f, glm::vec3(0, 1, 0));
+		mov_Trex_L = true;
+	}
+	else
+		mov_Trex_L = false;
+	if (modelSelected == 4 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+		modelMatrixTrex = glm::rotate(modelMatrixTrex, -0.02f, glm::vec3(0, 1, 0));
+		mov_Trex_R = true;
+	}
+	else
+		mov_Trex_R = false;
+	if (mov_Trex_D || mov_Trex_U || mov_Trex_L || mov_Trex_R)
+		animTrexSel = 1;
+	else
+		animTrexSel = 0;
+
 	glfwPollEvents();
 	return continueApplication;
 }
@@ -689,6 +750,8 @@ void applicationLoop() {
 
 	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
 	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
+
+	modelMatrixCowboy = glm::translate(modelMatrixCowboy, glm::vec3(5.0, 0.0, 0.0));
 
 	// Variables to interpolation key frames
 	fileName = "../animaciones/animation_dart_joints.txt";
@@ -858,6 +921,9 @@ void applicationLoop() {
 		modelMatrixDartRightLeg = glm::rotate(modelMatrixDartRightLeg, rotDartRightLeg, glm::vec3(0, 0, 1));
 		modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, -1.12632, 0.423349));
 		modelDartLegoRightLeg.render(modelMatrixDartRightLeg);
+
+		
+
 		// Se regresa el cull faces IMPORTANTE para la capa
 		glEnable(GL_CULL_FACE);
 
@@ -869,6 +935,20 @@ void applicationLoop() {
 		modelMatrixMayowBody = glm::scale(modelMatrixMayowBody, glm::vec3(0.021, 0.021, 0.021));
 		mayowModelAnimate.setAnimationIndex(0);
 		mayowModelAnimate.render(modelMatrixMayowBody);
+
+		//Cowboy
+		modelMatrixCowboy[3][1] = terrain.getHeightTerrain(modelMatrixCowboy[3][0], modelMatrixCowboy[3][2]);
+		glm::mat4 modelMatrixCowboyBody = glm::mat4(modelMatrixCowboy);
+		modelMatrixCowboyBody = glm::scale(modelMatrixCowboyBody, glm::vec3(0.004, 0.004, 0.004));
+		cowboyModelAnimate.setAnimationIndex(0);
+		cowboyModelAnimate.render(modelMatrixCowboyBody);
+
+		//Trex
+		modelMatrixTrex[3][1] = terrain.getHeightTerrain(modelMatrixTrex[3][0], modelMatrixTrex[3][2]);
+		glm::mat4 modelMatrixTrexBody = glm::mat4(modelMatrixTrex);
+		modelMatrixTrexBody = glm::scale(modelMatrixTrexBody, glm::vec3(0.01, 0.01, 0.01));
+		modelTrex.setAnimationIndex(animTrexSel);
+		modelTrex.render(modelMatrixTrexBody);
 
 		/*******************************************
 		 * Skybox
