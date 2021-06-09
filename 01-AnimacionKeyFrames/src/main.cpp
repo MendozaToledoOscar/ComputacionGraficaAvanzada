@@ -47,6 +47,7 @@ Shader shader;
 Shader shaderSkybox;
 //Shader con multiples luces
 Shader shaderMulLighting;
+Shader shaderMulLighting_mt;
 
 std::shared_ptr<FirstPersonCamera> camera(new FirstPersonCamera());
 
@@ -222,6 +223,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	shader.initialize("../Shaders/colorShader.vs", "../Shaders/colorShader.fs");
 	shaderSkybox.initialize("../Shaders/skyBox.vs", "../Shaders/skyBox.fs");
 	shaderMulLighting.initialize("../Shaders/iluminacion_texture_res.vs", "../Shaders/multipleLights.fs");
+	shaderMulLighting_mt.initialize("../Shaders/iluminacion_texture_res.vs", "../Shaders/multipleLights_ejercicio_mt.fs");
 
 	// Inicializacion de los objetos.
 	skyboxSphere.init();
@@ -229,7 +231,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	skyboxSphere.setScale(glm::vec3(20.0f, 20.0f, 20.0f));
 
 	esfera1.init();
-	esfera1.setShader(&shaderMulLighting);
+	esfera1.setShader(&shaderMulLighting_mt);
 	esfera1.setScale(glm::vec3(4.0f, 4.0f, 4.0f));
 	esfera1.setPosition(glm::vec3(1.0f, 4.0f, -6.0f));
 

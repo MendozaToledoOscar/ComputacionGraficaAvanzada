@@ -930,22 +930,32 @@ void applicationLoop() {
 		/*******************************************
 		 * Custom Anim objects obj
 		 *******************************************/
-		modelMatrixMayow[3][1] = terrain.getHeightTerrain(modelMatrixMayow[3][0], modelMatrixMayow[3][2]);
 		glm::mat4 modelMatrixMayowBody = glm::mat4(modelMatrixMayow);
+		modelMatrixMayow[3][1] = terrain.getHeightTerrain(modelMatrixMayow[3][0], modelMatrixMayow[3][2]);
 		modelMatrixMayowBody = glm::scale(modelMatrixMayowBody, glm::vec3(0.021, 0.021, 0.021));
 		mayowModelAnimate.setAnimationIndex(0);
 		mayowModelAnimate.render(modelMatrixMayowBody);
 
 		//Cowboy
-		modelMatrixCowboy[3][1] = terrain.getHeightTerrain(modelMatrixCowboy[3][0], modelMatrixCowboy[3][2]);
+		glm::vec3 ejey_cowboy = terrain.getNormalTerrain(modelMatrixCowboy[3][0], modelMatrixCowboy[3][2]);
+		glm::vec3 ejex_cowboy = glm::vec3(modelMatrixCowboy[0]);
+		glm::vec3 ejez_cowboy = glm::normalize(glm::cross(ejex_cowboy, ejey_cowboy));
+		modelMatrixCowboy[1] = glm::vec4(ejey_cowboy, 0.0);
+		modelMatrixCowboy[2] = glm::vec4(ejez_cowboy, 0.0);
 		glm::mat4 modelMatrixCowboyBody = glm::mat4(modelMatrixCowboy);
+		modelMatrixCowboy[3][1] = terrain.getHeightTerrain(modelMatrixCowboy[3][0], modelMatrixCowboy[3][2]);
 		modelMatrixCowboyBody = glm::scale(modelMatrixCowboyBody, glm::vec3(0.004, 0.004, 0.004));
 		cowboyModelAnimate.setAnimationIndex(0);
 		cowboyModelAnimate.render(modelMatrixCowboyBody);
 
 		//Trex
-		modelMatrixTrex[3][1] = terrain.getHeightTerrain(modelMatrixTrex[3][0], modelMatrixTrex[3][2]);
+		glm::vec3 ejey_trex = terrain.getNormalTerrain(modelMatrixTrex[3][0], modelMatrixTrex[3][2]);
+		glm::vec3 ejex_trex = glm::vec3(modelMatrixTrex[0]);
+		glm::vec3 ejez_trex = glm::normalize(glm::cross(ejex_trex, ejey_trex));
+		modelMatrixTrex[1] = glm::vec4(ejey_trex, 0.0);
+		modelMatrixTrex[2] = glm::vec4(ejez_trex, 0.0);
 		glm::mat4 modelMatrixTrexBody = glm::mat4(modelMatrixTrex);
+		modelMatrixTrex[3][1] = terrain.getHeightTerrain(modelMatrixTrex[3][0], modelMatrixTrex[3][2]);
 		modelMatrixTrexBody = glm::scale(modelMatrixTrexBody, glm::vec3(0.01, 0.01, 0.01));
 		modelTrex.setAnimationIndex(animTrexSel);
 		modelTrex.render(modelMatrixTrexBody);
