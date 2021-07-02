@@ -55,6 +55,8 @@ Shader shaderMulLighting;
 Shader shaderTerrain;
 
 std::shared_ptr<Camera> camera(new ThirdPersonCamera());
+std::shared_ptr<FirstPersonCamera> camera2(new FirstPersonCamera());
+
 
 Sphere skyboxSphere(20, 20);
 
@@ -87,6 +89,8 @@ Model modelLampPost2;
 // Model animate instance
 // Mayow
 Model mayowModelAnimate;
+// Spyro
+Model spyroModelAnimate;
 // Terrain model instance
 Terrain terrain(-1, -1, 200, 8, "../Textures/heightmap.png");
 
@@ -120,11 +124,12 @@ glm::mat4 modelMatrixLambo = glm::mat4(1.0);
 glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
 glm::mat4 modelMatrixDart = glm::mat4(1.0f);
 glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
+glm::mat4 modelMatrixSpyro = glm::mat4(1.0f);
 
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
 int modelSelected = 2;
 bool enableCountSelected = true;
-
+	
 // Variables to animations keyframes
 bool saveFrame = false, availableSave = true;
 std::ofstream myfile;
@@ -164,6 +169,9 @@ double deltaTime;
 double currTime, lastTime;
 float distanceFromTarget = 8.0;
 int animationIndex = 1;
+
+//Modo camaras
+bool modo_camera = true;
 
 // Se definen todos las funciones.
 void reshapeCallback(GLFWwindow *Window, int widthRes, int heightRes);
@@ -304,9 +312,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	mayowModelAnimate.loadModel("../models/mayow/personaje2.fbx");
 	mayowModelAnimate.setShader(&shaderMulLighting);
 
+	//Spyro
+	spyroModelAnimate.loadModel("../models/Spyro/spyro.fbx");
+	spyroModelAnimate.setShader(&shaderMulLighting);
+
 	camera->setPosition(glm::vec3(0.0, 0.0, 10.0));
 	camera->setDistanceFromTarget(distanceFromTarget);
 	camera->setSensitivity(1.0);
+	camera2->setPosition(glm::vec3(0.0, 3.0, 4.0));
 
 	// Definimos el tamanio de la imagen
 	int imageWidth, imageHeight;
@@ -703,6 +716,7 @@ void destroy() {
 
 	// Custom objects animate
 	mayowModelAnimate.destroy();
+	spyroModelAnimate.destroy();
 
 	// Textures Delete
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -780,23 +794,17 @@ bool processInput(bool continueApplication) {
 		camera->mouseMoveCamera(0.0, offsetY, deltaTime);
 	offsetX = 0;
 	offsetY = 0;
-}
-
-bool processInput(bool continueApplication) {
-	if (exitApp || glfwWindowShouldClose(window) != 0) {
-		return false;
-	}
-
+	
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		camera->moveFrontCamera(true, deltaTime);
+		camera2->moveFrontCamera(true, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		camera->moveFrontCamera(false, deltaTime);
+		camera2->moveFrontCamera(false, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		camera->moveRightCamera(false, deltaTime);
+		camera2->moveRightCamera(false, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		camera->moveRightCamera(true, deltaTime);
+		camera2->moveRightCamera(true, deltaTime);
 	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
-		camera->mouseMoveCamera(offsetX, offsetY, deltaTime);
+		camera2->mouseMoveCamera(offsetX, offsetY, deltaTime);
 	offsetX = 0;
 	offsetY = 0;
 
@@ -804,7 +812,7 @@ bool processInput(bool continueApplication) {
 	if (enableCountSelected && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS) {
 		enableCountSelected = false;
 		modelSelected++;
-		if (modelSelected > 2)
+		if (modelSelected > 3)
 			modelSelected = 0;
 		if (modelSelected == 1)
 			fileName = "../animaciones/animation_dart_joints.txt";
@@ -893,14 +901,38 @@ bool processInput(bool continueApplication) {
 	// Mayow animate model movements
 	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
 		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(1.0f), glm::vec3(0, 1, 0));
+		animationIndex = 0;
 	}
 	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-1.0f), glm::vec3(0, 1, 0));
+		animationIndex = 0;
 	}if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
 		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, 0.02));
+		animationIndex = 0;
 	}
 	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
 		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, -0.02));
+		animationIndex = 0;
+	}
+
+	// Spyro animate model movements
+	if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(1.0f), glm::vec3(0, 1, 0));
+		animationIndex = 0;
+	}
+	else if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-1.0f), glm::vec3(0, 1, 0));
+		animationIndex = 0;
+	}if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, 0.08));
+		animationIndex = 0;
+	}
+	else if (modelSelected == 3 && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, -0.08));
+		animationIndex = 0;
+	}
+	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS && glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS) {
+		modo_camera = !modo_camera;
 	}
 
 	glfwPollEvents();
@@ -927,6 +959,9 @@ void applicationLoop() {
 
 	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
 	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
+
+	modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(1.0f, 0.05f, -1.0f));
+	//modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-90.0f), glm::vec3(1, 0, 0));
 
 	// Variables to interpolation key frames
 	fileName = "../animaciones/animation_dart_joints.txt";
@@ -964,6 +999,11 @@ void applicationLoop() {
 			angleTarget = glm::angle(glm::quat_cast(modelMatrixMayow));
 			target = modelMatrixMayow[3];
 		}
+		else if (modelSelected == 3) {
+			axis = glm::axis(glm::quat_cast(modelMatrixSpyro));
+			angleTarget = glm::angle(glm::quat_cast(modelMatrixSpyro));
+			target = modelMatrixSpyro[3];
+		}
 
 		if (std::isnan(angleTarget))
 			angleTarget = 0.0;
@@ -971,11 +1011,15 @@ void applicationLoop() {
 			angleTarget = -angleTarget;
 		if (modelSelected == 1)
 			angleTarget -= glm::radians(90.0f);
-
+		
 		camera->setCameraTarget(target);
 		camera->setAngleTarget(angleTarget);
 		camera->updateCamera();
-		view = camera->getViewMatrix();
+		if (modo_camera) 
+			view = camera->getViewMatrix();
+		else 
+			view = camera2->getViewMatrix();
+		
 
 		// Settea la matriz de vista y projection al shader con solo color
 		shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
@@ -1000,7 +1044,11 @@ void applicationLoop() {
 		/*******************************************
 		 * Propiedades Luz direccional
 		 *******************************************/
-		shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+		if (modo_camera)
+			shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+		else
+			shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera2->getPosition()));
+		
 		shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.05, 0.05, 0.05)));
 		shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
 		shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.4, 0.4, 0.4)));
@@ -1009,7 +1057,10 @@ void applicationLoop() {
 		/*******************************************
 		 * Propiedades Luz direccional Terrain
 		 *******************************************/
-		shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+		if (modo_camera)
+			shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+		else
+			shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera2->getPosition()));
 		shaderTerrain.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.05, 0.05, 0.05)));
 		shaderTerrain.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
 		shaderTerrain.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.4, 0.4, 0.4)));
@@ -1239,6 +1290,12 @@ void applicationLoop() {
 		modelMatrixMayowBody = glm::scale(modelMatrixMayowBody, glm::vec3(0.021, 0.021, 0.021));
 		mayowModelAnimate.setAnimationIndex(animationIndex);
 		mayowModelAnimate.render(modelMatrixMayowBody);
+
+		modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+		glm::mat4 modelMatrixSpyroBody = glm::mat4(modelMatrixSpyro);
+		modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
+		spyroModelAnimate.setAnimationIndex(animationIndex);
+		spyroModelAnimate.render(modelMatrixSpyroBody);
 
 		/*******************************************
 		 * Skybox
