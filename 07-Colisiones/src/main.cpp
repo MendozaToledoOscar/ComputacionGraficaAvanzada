@@ -95,8 +95,16 @@ Model modelLampPost2;
 // Model animate instance
 // Mayow
 Model mayowModelAnimate;
+
+// Modelos de Oscar
 // Spyro
 Model spyroModelAnimate;
+// Diamante
+Model diamanteModelAnimate;
+// Enemigo
+Model enemigoModelAnimate;
+
+
 // Terrain model instance
 Terrain terrain(-1, -1, 200, 8, "../Textures/heightmap.png");
 
@@ -131,6 +139,8 @@ glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
 glm::mat4 modelMatrixDart = glm::mat4(1.0f);
 glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
 glm::mat4 modelMatrixSpyro = glm::mat4(1.0f);
+glm::mat4 modelMatrixDiamante = glm::mat4(1.0f);
+glm::mat4 modelMatrixEnemigo = glm::mat4(1.0f);
 
 int animationIndex = 1;
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
@@ -339,6 +349,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	//Spyro
 	spyroModelAnimate.loadModel("../models/Spyro/spyro.fbx");
 	spyroModelAnimate.setShader(&shaderMulLighting);
+
+	//Diamante
+	diamanteModelAnimate.loadModel("../models/Diamante/diamante.fbx");
+	diamanteModelAnimate.setShader(&shaderMulLighting);
+
+	//Enemigo
+	enemigoModelAnimate.loadModel("../models/Enemigo/Enemigo.fbx");
+	enemigoModelAnimate.setShader(&shaderMulLighting);
 
 	camera->setPosition(glm::vec3(0.0, 0.0, 10.0));
 	camera->setDistanceFromTarget(distanceFromTarget);
@@ -743,6 +761,8 @@ void destroy() {
 	// Custom objects animate
 	mayowModelAnimate.destroy();
 	spyroModelAnimate.destroy();
+	diamanteModelAnimate.destroy();
+	enemigoModelAnimate.destroy();
 
 	// Textures Delete
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -972,6 +992,10 @@ void applicationLoop() {
 
 	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
 	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
+
+	//modelMatrixDiamante = glm::translate(modelMatrixDiamante, glm::vec3(10.0f, 0.0f, -5.0f));
+
+	//modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(10.0f, 0.0f, -5.0f));
 
 	// Variables to interpolation key frames
 	fileName = "../animaciones/animation_dart_joints.txt";
@@ -1335,6 +1359,16 @@ void applicationLoop() {
 		modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
 		spyroModelAnimate.setAnimationIndex(animationIndex);
 		spyroModelAnimate.render(modelMatrixSpyroBody);
+
+		modelMatrixDiamante[3][1] = terrain.getHeightTerrain(modelMatrixDiamante[3][0], modelMatrixDiamante[3][2]);
+		modelMatrixDiamante = glm::scale(modelMatrixDiamante, glm::vec3(0.8, 0.8, 0.8));
+		diamanteModelAnimate.setAnimationIndex(animationIndex);
+		diamanteModelAnimate.render(modelMatrixDiamante);
+
+		modelMatrixEnemigo[3][1] = terrain.getHeightTerrain(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][2]);
+		modelMatrixEnemigo = glm::scale(modelMatrixEnemigo, glm::vec3(0.8, 0.8, 0.8));
+		enemigoModelAnimate.setAnimationIndex(animationIndex);
+		enemigoModelAnimate.render(modelMatrixEnemigo);
 
 		/*******************************************
 		 * Ray in Spyro view direction
