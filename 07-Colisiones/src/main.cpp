@@ -143,6 +143,7 @@ glm::mat4 modelMatrixDiamante = glm::mat4(1.0f);
 glm::mat4 modelMatrixEnemigo = glm::mat4(1.0f);
 
 int animationIndex = 1;
+int diamanteAnimationIndex = 0;
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
 int modelSelected = 2;
 bool enableCountSelected = true;
@@ -961,6 +962,12 @@ bool processInput(bool continueApplication) {
 		animationIndex = 0;
 	}
 
+	// Diamante animate model controll
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) 
+		diamanteAnimationIndex = 0;
+	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS)
+		diamanteAnimationIndex = 1;
+
 	bool keySpaceStatus = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
 	if (!isJump && keySpaceStatus) {
 		isJump = true;
@@ -993,9 +1000,9 @@ void applicationLoop() {
 	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
 	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
 
-	//modelMatrixDiamante = glm::translate(modelMatrixDiamante, glm::vec3(10.0f, 0.0f, -5.0f));
+	modelMatrixDiamante = glm::translate(modelMatrixDiamante, glm::vec3(10.0f, 0.0f, -10.0f));
 
-	//modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(10.0f, 0.0f, -5.0f));
+	modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(10.0f, 0.0f, 5.0f));
 
 	// Variables to interpolation key frames
 	fileName = "../animaciones/animation_dart_joints.txt";
@@ -1360,16 +1367,21 @@ void applicationLoop() {
 		spyroModelAnimate.setAnimationIndex(animationIndex);
 		spyroModelAnimate.render(modelMatrixSpyroBody);
 
-		modelMatrixDiamante[3][1] = terrain.getHeightTerrain(modelMatrixDiamante[3][0], modelMatrixDiamante[3][2]);
-		modelMatrixDiamante = glm::scale(modelMatrixDiamante, glm::vec3(0.8, 0.8, 0.8));
-		diamanteModelAnimate.setAnimationIndex(animationIndex);
-		diamanteModelAnimate.render(modelMatrixDiamante);
-
+		// Enemigo
 		modelMatrixEnemigo[3][1] = terrain.getHeightTerrain(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][2]);
-		modelMatrixEnemigo = glm::scale(modelMatrixEnemigo, glm::vec3(0.8, 0.8, 0.8));
+		glm::mat4 modelMatrixEnemigoBody = glm::mat4(modelMatrixEnemigo);
+		modelMatrixEnemigoBody = glm::scale(modelMatrixEnemigoBody, glm::vec3(0.01, 0.01, 0.01));
 		enemigoModelAnimate.setAnimationIndex(animationIndex);
-		enemigoModelAnimate.render(modelMatrixEnemigo);
-
+		enemigoModelAnimate.render(modelMatrixEnemigoBody);
+		
+		// Diamante
+		modelMatrixDiamante[3][1] = terrain.getHeightTerrain(modelMatrixDiamante[3][0], modelMatrixDiamante[3][2]);
+		glm::mat4 modelMatrixDiamanteBody = glm::mat4(modelMatrixDiamante);
+		modelMatrixDiamanteBody = glm::scale(modelMatrixDiamanteBody, glm::vec3(0.01, 0.01, 0.01));
+		diamanteModelAnimate.setAnimationIndex(diamanteAnimationIndex);
+		diamanteModelAnimate.render(modelMatrixDiamanteBody);
+		glActiveTexture(GL_TEXTURE0);
+		
 		/*******************************************
 		 * Ray in Spyro view direction
 		 *******************************************/
@@ -1505,7 +1517,26 @@ void applicationLoop() {
 		spyroCollider.e = spyroModelAnimate.getObb().e * glm::vec3(0.015, 0.015, 0.015);
 		spyroCollider.c = glm::vec3(modelMatrixColliderSpyro[3]);
 		addOrUpdateColliders(collidersOBB, "spyro", spyroCollider, modelMatrixSpyro);
-
+		
+		// Collider de Enemigo
+		AbstractModel::OBB enemigoCollider;
+		glm::mat4 modelMatrixColliderEnemigo = glm::mat4(modelMatrixEnemigo);
+		enemigoCollider.u = glm::quat_cast(modelMatrixColliderEnemigo);
+		modelMatrixColliderEnemigo = glm::scale(modelMatrixColliderEnemigo, glm::vec3(0.005, 0.01, 0.01));
+		modelMatrixColliderEnemigo = glm::translate(modelMatrixColliderEnemigo, enemigoModelAnimate.getObb().c);
+		enemigoCollider.e = enemigoModelAnimate.getObb().e * glm::vec3(0.005, 0.01, 0.01);
+		enemigoCollider.c = glm::vec3(modelMatrixColliderEnemigo[3]);
+		addOrUpdateColliders(collidersOBB, "enemigo", enemigoCollider, modelMatrixEnemigo);
+		
+		// Collider diamante
+		AbstractModel::SBB diamanteCollider;
+		glm::mat4 modelMatrixColliderDiamante = glm::mat4(modelMatrixDiamante);
+		modelMatrixColliderDiamante = glm::scale(modelMatrixColliderDiamante, glm::vec3(0.01, 0.01, 0.01));
+		modelMatrixColliderDiamante = glm::translate(modelMatrixColliderDiamante, diamanteModelAnimate.getSbb().c);
+		diamanteCollider.c = modelMatrixColliderDiamante[3];
+		diamanteCollider.ratio = diamanteModelAnimate.getSbb().ratio * 0.01;
+		addOrUpdateColliders(collidersSBB, "diamante", diamanteCollider, modelMatrixDiamante);
+		
 		/*******************************************
 		 * Render de colliders
 		 *******************************************/
