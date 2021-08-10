@@ -79,23 +79,6 @@ Model modelRock;
 Model modelAircraft;
 Model modelHeliChasis;
 Model modelHeliHeli;
-Model modelLambo;
-Model modelLamboLeftDor;
-Model modelLamboRightDor;
-Model modelLamboFrontLeftWheel;
-Model modelLamboFrontRightWheel;
-Model modelLamboRearLeftWheel;
-Model modelLamboRearRightWheel;
-// Dart lego
-Model modelDartLegoBody;
-Model modelDartLegoHead;
-Model modelDartLegoMask;
-Model modelDartLegoLeftArm;
-Model modelDartLegoRightArm;
-Model modelDartLegoLeftHand;
-Model modelDartLegoRightHand;
-Model modelDartLegoLeftLeg;
-Model modelDartLegoRightLeg;
 // Lamps
 Model modelLamp1;
 Model modelLamp2;
@@ -104,9 +87,7 @@ Model modelLampPost2;
 Model modelGrass;
 // Fountain
 Model modelFountain;
-// Model animate instance
-// Mayow
-Model mayowModelAnimate;
+
 // Modelos de Oscar
 // Spyro
 Model spyroModelAnimate;
@@ -144,19 +125,19 @@ int lastMousePosY, offsetY = 0;
 // Model matrix definitions
 glm::mat4 matrixModelRock = glm::mat4(1.0);
 glm::mat4 modelMatrixHeli = glm::mat4(1.0f);
-glm::mat4 modelMatrixLambo = glm::mat4(1.0);
 glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
-glm::mat4 modelMatrixDart = glm::mat4(1.0f);
-glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
 glm::mat4 modelMatrixFountain = glm::mat4(1.0f);
 glm::mat4 modelMatrixSpyro = glm::mat4(1.0f);
 glm::mat4 modelMatrixDiamante = glm::mat4(1.0f);
 glm::mat4 modelMatrixEnemigo = glm::mat4(1.0f);
 
 int animationIndex = 1;
-float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
+int enemigo_anim_index = 2;
 int modelSelected = 0;
 bool enableCountSelected = true;
+
+//Variables para el movimiento del enemigo
+glm::vec3 vectorDirectorEnemigo;
 
 // Variables to animations keyframes
 bool saveFrame = false, availableSave = true;
@@ -164,26 +145,10 @@ std::ofstream myfile;
 std::string fileName = "";
 bool record = false;
 
-// Joints interpolations Dart Lego
-std::vector<std::vector<float>> keyFramesDartJoints;
-std::vector<std::vector<glm::mat4>> keyFramesDart;
-int indexFrameDartJoints = 0;
-int indexFrameDartJointsNext = 1;
-float interpolationDartJoints = 0.0;
-int maxNumPasosDartJoints = 20;
-int numPasosDartJoints = 0;
-int indexFrameDart = 0;
-int indexFrameDartNext = 1;
-float interpolationDart = 0.0;
-int maxNumPasosDart = 200;
-int numPasosDart = 0;
 
 // Var animate helicopter
 float rotHelHelY = 0.0;
 
-// Var animate lambo dor
-int stateDoor = 0;
-float dorRotCount = 0.0;
 
 // Lamps positions
 std::vector<glm::vec3> lamp1Position = { glm::vec3(-7.03, 0, -19.14), glm::vec3(
@@ -196,7 +161,6 @@ std::vector<float> lamp2Orientation = {21.37 + 90, -65.0 + 90};
 // Blending model unsorted
 std::map<std::string, glm::vec3> blendingUnsorted = {
 		{"aircraft", glm::vec3(10.0, 0.0, -17.5)},
-		{"lambo", glm::vec3(23.0, 0.0, 0.0)},
 		{"heli", glm::vec3(5.0, 10.0, -5.0)},
 		{"fountain", glm::vec3(5.0, 0.0, -40.0)},
 		{"fire", glm::vec3(0.0, 0.0, 7.0)}
@@ -485,41 +449,6 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	modelHeliChasis.setShader(&shaderMulLighting);
 	modelHeliHeli.loadModel("../models/Helicopter/Mi_24_heli.obj");
 	modelHeliHeli.setShader(&shaderMulLighting);
-	// Lamborginhi
-	modelLambo.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_chasis.obj");
-	modelLambo.setShader(&shaderMulLighting);
-	modelLamboLeftDor.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_left_dor.obj");
-	modelLamboLeftDor.setShader(&shaderMulLighting);
-	modelLamboRightDor.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_right_dor.obj");
-	modelLamboRightDor.setShader(&shaderMulLighting);
-	modelLamboFrontLeftWheel.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_front_left_wheel.obj");
-	modelLamboFrontLeftWheel.setShader(&shaderMulLighting);
-	modelLamboFrontRightWheel.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_front_right_wheel.obj");
-	modelLamboFrontRightWheel.setShader(&shaderMulLighting);
-	modelLamboRearLeftWheel.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_rear_left_wheel.obj");
-	modelLamboRearLeftWheel.setShader(&shaderMulLighting);
-	modelLamboRearRightWheel.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_rear_right_wheel.obj");
-	modelLamboRearRightWheel.setShader(&shaderMulLighting);
-
-	// Dart Lego
-	modelDartLegoBody.loadModel("../models/LegoDart/LeoDart_body.obj");
-	modelDartLegoBody.setShader(&shaderMulLighting);
-	modelDartLegoMask.loadModel("../models/LegoDart/LeoDart_mask.obj");
-	modelDartLegoMask.setShader(&shaderMulLighting);
-	modelDartLegoHead.loadModel("../models/LegoDart/LeoDart_head.obj");
-	modelDartLegoHead.setShader(&shaderMulLighting);
-	modelDartLegoLeftArm.loadModel("../models/LegoDart/LeoDart_left_arm.obj");
-	modelDartLegoLeftArm.setShader(&shaderMulLighting);
-	modelDartLegoRightArm.loadModel("../models/LegoDart/LeoDart_right_arm.obj");
-	modelDartLegoRightArm.setShader(&shaderMulLighting);
-	modelDartLegoLeftHand.loadModel("../models/LegoDart/LeoDart_left_hand.obj");
-	modelDartLegoLeftHand.setShader(&shaderMulLighting);
-	modelDartLegoRightHand.loadModel("../models/LegoDart/LeoDart_right_hand.obj");
-	modelDartLegoRightHand.setShader(&shaderMulLighting);
-	modelDartLegoLeftLeg.loadModel("../models/LegoDart/LeoDart_left_leg.obj");
-	modelDartLegoLeftLeg.setShader(&shaderMulLighting);
-	modelDartLegoRightLeg.loadModel("../models/LegoDart/LeoDart_right_leg.obj");
-	modelDartLegoRightLeg.setShader(&shaderMulLighting);
 
 	//Lamp models
 	modelLamp1.loadModel("../models/Street-Lamp-Black/objLamp.obj");
@@ -536,10 +465,6 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	//Fountain
 	modelFountain.loadModel("../models/fountain/fountain.obj");
 	modelFountain.setShader(&shaderMulLighting);
-
-	//Mayow
-	mayowModelAnimate.loadModel("../models/mayow/personaje2.fbx");
-	mayowModelAnimate.setShader(&shaderMulLighting);
 
 	//Spyro
 	spyroModelAnimate.loadModel("../models/Spyro/spyro.fbx");
@@ -864,24 +789,8 @@ void destroy() {
 
 	// Custom objects Delete
 	modelAircraft.destroy();
-	modelDartLegoBody.destroy();
-	modelDartLegoHead.destroy();
-	modelDartLegoLeftArm.destroy();
-	modelDartLegoLeftHand.destroy();
-	modelDartLegoLeftLeg.destroy();
-	modelDartLegoMask.destroy();
-	modelDartLegoRightArm.destroy();
-	modelDartLegoRightHand.destroy();
-	modelDartLegoRightLeg.destroy();
 	modelHeliChasis.destroy();
 	modelHeliHeli.destroy();
-	modelLambo.destroy();
-	modelLamboFrontLeftWheel.destroy();
-	modelLamboFrontRightWheel.destroy();
-	modelLamboLeftDor.destroy();
-	modelLamboRearLeftWheel.destroy();
-	modelLamboRearRightWheel.destroy();
-	modelLamboRightDor.destroy();
 	modelRock.destroy();
 	modelLamp1.destroy();
 	modelLamp2.destroy();
@@ -890,7 +799,6 @@ void destroy() {
 	modelFountain.destroy();
 
 	// Custom objects animate
-	mayowModelAnimate.destroy();
 	spyroModelAnimate.destroy();
 	diamanteModelAnimate.destroy();
 	enemigoModelAnimate.destroy();
@@ -983,6 +891,45 @@ bool processInput(bool continueApplication) {
 		return false;
 	}
 
+	// Controlador xbox360 for pc
+	if (glfwJoystickPresent(GLFW_JOYSTICK_1) == GL_TRUE) {
+		std::cout << "Esta presente el joystick" << std::endl;
+		int axesCount, buttonCount;
+		const float* axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &axesCount);
+		std::cout << "Número de ejes disponibles :=>" << axesCount << std::endl;
+		std::cout << "Left Stick X axis: " << axes[0] << std::endl;
+		std::cout << "Left Stick Y axis: " << axes[1] << std::endl;
+		std::cout << "Left Trigger/L2: " << axes[2] << std::endl; // Right Stick X axis
+		std::cout << "Right Stick X axis: " << axes[3] << std::endl; // Right Stick Y axis
+		std::cout << "Right Stick Y axis: " << axes[4] << std::endl; // Left Trigger
+		std::cout << "Right Trigger/R2: " << axes[5] << std::endl;
+
+		if (fabs(axes[1]) > 0.2) {
+			modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, axes[1] * 0.1));
+			animationIndex = 0;
+		}if (fabs(axes[0]) > 0.2) {
+			modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-axes[0] * 3.0f), glm::vec3(0, 1, 0));
+			animationIndex = 0;
+		}
+
+		if (fabs(axes[2]) > 0.2) {
+			camera->mouseMoveCamera(axes[2] * 3.0f, 0.0, deltaTime);
+		}if (fabs(axes[3]) > 0.2) {
+			camera->mouseMoveCamera(0.0, axes[3], deltaTime);
+		}
+
+		const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
+		std::cout << "Número de botones disponibles :=>" << buttonCount << std::endl;
+		if (buttons[0] == GLFW_PRESS)
+			std::cout << "Se presiona x" << std::endl;
+
+		if (!isJump && buttons[0] == GLFW_PRESS) {
+			isJump = true;
+			startTimeJump = currTime;
+			tmv = 0;
+		}
+	}
+
 	if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
 		camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
 	if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
@@ -1018,82 +965,12 @@ bool processInput(bool continueApplication) {
 			&& glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS){
 		record = false;
 		myfile.close();
-		if(modelSelected == 1)
-			keyFramesDartJoints = getKeyRotFrames(fileName);
-		if (modelSelected == 2)
-			keyFramesDart = getKeyFrames(fileName);
 	}
 	if(availableSave && glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS){
 		saveFrame = true;
 		availableSave = false;
 	}if(glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_RELEASE)
 		availableSave = true;
-
-	// Dart Lego model movements
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-		rotDartHead += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-		rotDartHead -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-		rotDartLeftArm += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-		rotDartLeftArm -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
-		rotDartRightArm += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
-		rotDartRightArm -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS)
-		rotDartLeftHand += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS)
-		rotDartLeftHand -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS)
-		rotDartRightHand += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS)
-		rotDartRightHand -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS)
-		rotDartLeftLeg += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS)
-		rotDartLeftLeg -= 0.02;
-	if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE &&
-			glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS)
-		rotDartRightLeg += 0.02;
-	else if (modelSelected == 1 && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS &&
-			glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS)
-		rotDartRightLeg -= 0.02;
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-		modelMatrixDart = glm::rotate(modelMatrixDart, 0.02f, glm::vec3(0, 1, 0));
-	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-		modelMatrixDart = glm::rotate(modelMatrixDart, -0.02f, glm::vec3(0, 1, 0));
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-		modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(-0.02, 0.0, 0.0));
-	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-		modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(0.02, 0.0, 0.0));
-
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS){
-		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(1.0f), glm::vec3(0, 1, 0));
-		animationIndex = 0;
-	}else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
-		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-1.0f), glm::vec3(0, 1, 0));
-		animationIndex = 0;
-	}if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS){
-		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, 0.02));
-		animationIndex = 0;
-	}else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS){
-		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, -0.02));
-		animationIndex = 0;
-	}
 
 	// Spyro animate model movements
 	if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
@@ -1111,13 +988,13 @@ bool processInput(bool continueApplication) {
 		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, -0.08));
 		animationIndex = 0;
 	}
-
+	/*
 	bool keySpaceStatus = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
 	if (!isJump && keySpaceStatus) {
 		isJump = true;
 		tmv = 0;
 		startTimeJump = currTime;
-	}
+	}*/
 
 	glfwPollEvents();
 	return continueApplication;
@@ -1137,13 +1014,6 @@ void applicationLoop() {
 
 	modelMatrixAircraft = glm::translate(modelMatrixAircraft, glm::vec3(10.0, 2.0, -17.5));
 
-	modelMatrixLambo = glm::translate(modelMatrixLambo, glm::vec3(23.0, 0.0, 0.0));
-
-	modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(3.0, 0.0, 20.0));
-
-	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
-	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
-
 	modelMatrixDiamante = glm::translate(modelMatrixDiamante, glm::vec3(10.0f, 0.0f, -10.0f));
 
 	modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(10.0f, 0.0f, 5.0f));
@@ -1152,10 +1022,6 @@ void applicationLoop() {
 	modelMatrixFountain[3][1] = terrain.getHeightTerrain(modelMatrixFountain[3][0] , modelMatrixFountain[3][2]) + 0.2;
 	modelMatrixFountain = glm::scale(modelMatrixFountain, glm::vec3(10.0f, 10.0f, 10.0f));
 
-	// Variables to interpolation key frames
-	fileName = "../animaciones/animation_dart_joints.txt";
-	keyFramesDartJoints = getKeyRotFrames(fileName);
-	keyFramesDart = getKeyFrames("../animaciones/animation_dart.txt");
 
 	lastTime = TimeManager::Instance().GetTime();
 
@@ -1179,25 +1045,15 @@ void applicationLoop() {
 
 		std::map<std::string, bool> collisionDetection;
 
-		// Variables donde se guardan las matrices de cada articulacion por 1 frame
-		std::vector<float> matrixDartJoints;
-		std::vector<glm::mat4> matrixDart;
-
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
 				(float) screenWidth / (float) screenHeight, 0.01f, 100.0f);
 
-		if(modelSelected == 1){
-			axis = glm::axis(glm::quat_cast(modelMatrixMayow));
-			angleTarget = glm::angle(glm::quat_cast(modelMatrixMayow));
-			target = modelMatrixMayow[3];
-		}
-		else{
-			axis = glm::axis(glm::quat_cast(modelMatrixSpyro));
-			angleTarget = glm::angle(glm::quat_cast(modelMatrixSpyro));
-			target = modelMatrixSpyro[3];
-		}
+		
+		axis = glm::axis(glm::quat_cast(modelMatrixSpyro));
+		angleTarget = glm::angle(glm::quat_cast(modelMatrixSpyro));
+		target = modelMatrixSpyro[3];
 
 		if(std::isnan(angleTarget))
 			angleTarget = 0.0;
@@ -1414,67 +1270,11 @@ void applicationLoop() {
 		modelFountain.render(modelMatrixFountain);
 		glEnable(GL_CULL_FACE);
 
-		// Dart lego
-		// Se deshabilita el cull faces IMPORTANTE para la capa
-		glDisable(GL_CULL_FACE);
-		modelMatrixDart[3][1] = terrain.getHeightTerrain(modelMatrixDart[3][0], modelMatrixDart[3][2]);
-		glm::mat4 modelMatrixDartBody = glm::mat4(modelMatrixDart);
-		modelMatrixDartBody = glm::scale(modelMatrixDartBody, glm::vec3(0.5, 0.5, 0.5));
-		modelDartLegoBody.render(modelMatrixDartBody);
-		glm::mat4 modelMatrixDartHead = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartHead = glm::rotate(modelMatrixDartHead, rotDartHead, glm::vec3(0, 1, 0));
-		modelDartLegoHead.render(modelMatrixDartHead);
-		modelDartLegoMask.render(modelMatrixDartHead);
-		glm::mat4 modelMatrixDartLeftArm = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(-0.023515, 2.43607, 0.446066));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, rotDartLeftArm, glm::vec3(0, 0, 1));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(0.023515, -2.43607, -0.446066));
-		modelDartLegoLeftArm.render(modelMatrixDartLeftArm);
-		glm::mat4 modelMatrixDartLeftHand = glm::mat4(modelMatrixDartLeftArm);
-		modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(0.201343, 1.68317, 0.99774));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, rotDartLeftHand, glm::vec3(0, 1, 0));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(-0.201343, -1.68317, -0.99774));
-		modelDartLegoLeftHand.render(modelMatrixDartLeftHand);
-		glm::mat4 modelMatrixDartRightArm = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(-0.023515, 2.43607, -0.446066));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, rotDartRightArm, glm::vec3(0, 0, 1));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(0.023515, -2.43607, 0.446066));
-		modelDartLegoRightArm.render(modelMatrixDartRightArm);
-		glm::mat4 modelMatrixDartRightHand = glm::mat4(modelMatrixDartRightArm);
-		modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(0.201343, 1.68317, -0.99774));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, rotDartRightHand, glm::vec3(0, 1, 0));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(-0.201343, -1.68317, 0.99774));
-		modelDartLegoRightHand.render(modelMatrixDartRightHand);
-		glm::mat4 modelMatrixDartLeftLeg = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, 1.12632, 0.423349));
-		modelMatrixDartLeftLeg = glm::rotate(modelMatrixDartLeftLeg, rotDartLeftLeg, glm::vec3(0, 0, 1));
-		modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, -1.12632, -0.423349));
-		modelDartLegoLeftLeg.render(modelMatrixDartLeftLeg);
-		glm::mat4 modelMatrixDartRightLeg = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, 1.12632, -0.423349));
-		modelMatrixDartRightLeg = glm::rotate(modelMatrixDartRightLeg, rotDartRightLeg, glm::vec3(0, 0, 1));
-		modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, -1.12632, 0.423349));
-		modelDartLegoRightLeg.render(modelMatrixDartRightLeg);
-		// Se regresa el cull faces IMPORTANTE para la capa
-		glEnable(GL_CULL_FACE);
-
 		/*******************************************
 		 * Custom Anim objects obj
 		 *******************************************/
-		modelMatrixMayow[3][1] = terrain.getHeightTerrain(modelMatrixMayow[3][0], modelMatrixMayow[3][2]);
-		glm::mat4 modelMatrixMayowBody = glm::mat4(modelMatrixMayow);
-		modelMatrixMayowBody = glm::scale(modelMatrixMayowBody, glm::vec3(0.021, 0.021, 0.021));
-		mayowModelAnimate.setAnimationIndex(animationIndex);
-		mayowModelAnimate.render(modelMatrixMayowBody);
-
+		
+		//Spyro
 		modelMatrixSpyro[3][1] = -gravedad * tmv * tmv + 3.5 * tmv + terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
 		tmv = currTime - startTimeJump;
 		if (modelMatrixSpyro[3][1] < terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2])) {
@@ -1486,13 +1286,25 @@ void applicationLoop() {
 		modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
 		spyroModelAnimate.setAnimationIndex(animationIndex);
 		spyroModelAnimate.render(modelMatrixSpyroBody);
-
-		
+				
 		// Enemigo
+
+		glm::vec3 enemigoDirection = glm::normalize(glm::vec3(	modelMatrixSpyro[3][0] - modelMatrixEnemigo[3][0],
+																modelMatrixSpyro[3][1] - modelMatrixEnemigo[3][1],
+																modelMatrixSpyro[3][2] - modelMatrixEnemigo[3][2]));
+		glm::vec3 enemigoUp = glm::vec3(0.0, 1.0, 0.0);
+		glm::vec3 enemigoRight = glm::normalize(glm::cross(enemigoUp, enemigoDirection));
+		glm::vec3 enemigoPos = glm::vec3(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][1], modelMatrixEnemigo[3][2]);
+
 		modelMatrixEnemigo[3][1] = terrain.getHeightTerrain(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][2]);
 		glm::mat4 modelMatrixEnemigoBody = glm::mat4(modelMatrixEnemigo);
+
+		modelMatrixEnemigoBody[0][0] = enemigoRight.x;		modelMatrixEnemigoBody[0][1] = enemigoRight.y;		modelMatrixEnemigoBody[0][2] = enemigoRight.z;
+		modelMatrixEnemigoBody[1][0] = enemigoUp.x;			modelMatrixEnemigoBody[1][1] = enemigoUp.y;			modelMatrixEnemigoBody[1][2] = enemigoUp.z;
+		modelMatrixEnemigoBody[2][0] = enemigoDirection.x;	modelMatrixEnemigoBody[2][1] = enemigoDirection.y;	modelMatrixEnemigoBody[2][2] = enemigoDirection.z;
+
 		modelMatrixEnemigoBody = glm::scale(modelMatrixEnemigoBody, glm::vec3(0.01, 0.01, 0.01));
-		enemigoModelAnimate.setAnimationIndex(animationIndex);
+		enemigoModelAnimate.setAnimationIndex(enemigo_anim_index);
 		enemigoModelAnimate.render(modelMatrixEnemigoBody);
 
 		/*
@@ -1541,8 +1353,6 @@ void applicationLoop() {
 		 */
 		// Update the aircraft
 		blendingUnsorted.find("aircraft")->second = glm::vec3(modelMatrixAircraft[3]);
-		// Update the lambo
-		blendingUnsorted.find("lambo")->second = glm::vec3(modelMatrixLambo[3]);
 		// Update the helicopter
 		blendingUnsorted.find("heli")->second = glm::vec3(modelMatrixHeli[3]);
 
@@ -1568,25 +1378,6 @@ void applicationLoop() {
 				glm::mat4 modelMatrixAircraftBlend = glm::mat4(modelMatrixAircraft);
 				modelMatrixAircraftBlend[3][1] = terrain.getHeightTerrain(modelMatrixAircraftBlend[3][0], modelMatrixAircraftBlend[3][2]) + 2.0;
 				modelAircraft.render(modelMatrixAircraftBlend);
-			}
-			else if(it->second.first.compare("lambo") == 0){
-				// Lambo car
-				glm::mat4 modelMatrixLamboBlend = glm::mat4(modelMatrixLambo);
-				modelMatrixLamboBlend[3][1] = terrain.getHeightTerrain(modelMatrixLamboBlend[3][0], modelMatrixLamboBlend[3][2]);
-				modelMatrixLamboBlend = glm::scale(modelMatrixLamboBlend, glm::vec3(1.3, 1.3, 1.3));
-				modelLambo.render(modelMatrixLamboBlend);
-				glActiveTexture(GL_TEXTURE0);
-				glm::mat4 modelMatrixLamboLeftDor = glm::mat4(modelMatrixLamboBlend);
-				modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(1.08676, 0.707316, 0.982601));
-				modelMatrixLamboLeftDor = glm::rotate(modelMatrixLamboLeftDor, glm::radians(dorRotCount), glm::vec3(1.0, 0, 0));
-				modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(-1.08676, -0.707316, -0.982601));
-				modelLamboLeftDor.render(modelMatrixLamboLeftDor);
-				modelLamboRightDor.render(modelMatrixLamboBlend);
-				modelLamboFrontLeftWheel.render(modelMatrixLamboBlend);
-				modelLamboFrontRightWheel.render(modelMatrixLamboBlend);
-				modelLamboRearLeftWheel.render(modelMatrixLamboBlend);
-				modelLamboRearRightWheel.render(modelMatrixLamboBlend);
-				// Se regresa el cull faces IMPORTANTE para las puertas
 			}
 			else if(it->second.first.compare("heli") == 0){
 				// Helicopter
@@ -1690,20 +1481,7 @@ void applicationLoop() {
 		 * Creacion de colliders
 		 * IMPORTANT do this before interpolations
 		 *******************************************/
-		// Collider del dart vader lego
-		glm::mat4 modelmatrixColliderDart = glm::mat4(modelMatrixDart);
-		AbstractModel::OBB dartLegoBodyCollider;
-		// Set the orientation of collider before doing the scale
-		dartLegoBodyCollider.u = glm::quat_cast(modelMatrixDart);
-		modelmatrixColliderDart = glm::scale(modelmatrixColliderDart, glm::vec3(0.5, 0.5, 0.5));
-		modelmatrixColliderDart = glm::translate(modelmatrixColliderDart,
-				glm::vec3(modelDartLegoBody.getObb().c.x,
-						modelDartLegoBody.getObb().c.y,
-						modelDartLegoBody.getObb().c.z));
-		dartLegoBodyCollider.c = glm::vec3(modelmatrixColliderDart[3]);
-		dartLegoBodyCollider.e = modelDartLegoBody.getObb().e * glm::vec3(0.5, 0.5, 0.5);
-		addOrUpdateColliders(collidersOBB, "dart", dartLegoBodyCollider, modelMatrixDart);
-
+		
 		// Collider del aricraft
 		glm::mat4 modelMatrixColliderAircraft = glm::mat4(modelMatrixAircraft);
 		AbstractModel::OBB aircraftCollider;
@@ -1716,6 +1494,61 @@ void applicationLoop() {
 		aircraftCollider.c = glm::vec3(modelMatrixColliderAircraft[3]);
 		aircraftCollider.e = modelAircraft.getObb().e * glm::vec3(1.0, 1.0, 1.0);
 		addOrUpdateColliders(collidersOBB, "aircraft", aircraftCollider, modelMatrixAircraft);
+
+		/*************************************************************************************
+		* Paredes
+		*************************************************************************************/
+		// Collider de Pared Norte
+		glm::mat4 ModelMatrixColliderParedNorte = glm::mat4(1.0f);
+		AbstractModel::OBB ParedNorteCollider;
+		// Set the orientation of collider before doing the scale
+		ParedNorteCollider.u = glm::quat_cast(ModelMatrixColliderParedNorte);
+		ModelMatrixColliderParedNorte = glm::translate(
+			ModelMatrixColliderParedNorte, glm::vec3(100.0, 10.0, 0.0));
+		ModelMatrixColliderParedNorte = glm::scale(ModelMatrixColliderParedNorte,
+			glm::vec3(1.0, 12.0, 98.8));
+		ParedNorteCollider.c = glm::vec3(ModelMatrixColliderParedNorte[3]);
+		ParedNorteCollider.e = glm::vec3(1.0, 12.0, 98.8);
+		addOrUpdateColliders(collidersOBB, "paredNorte", ParedNorteCollider, ModelMatrixColliderParedNorte);
+
+		// Collider de Pared Sur
+		glm::mat4 ModelMatrixColliderParedSur = glm::mat4(1.0f);
+		AbstractModel::OBB ParedSurCollider;
+		// Set the orientation of collider before doing the scale
+		ParedSurCollider.u = glm::quat_cast(ModelMatrixColliderParedSur);
+		ModelMatrixColliderParedSur = glm::translate(
+			ModelMatrixColliderParedSur, glm::vec3(-100.0, 10.0, 0.0));
+		ModelMatrixColliderParedSur = glm::scale(ModelMatrixColliderParedSur,
+			glm::vec3(1.0, 12.0, 98.8));
+		ParedSurCollider.c = glm::vec3(ModelMatrixColliderParedSur[3]);
+		ParedSurCollider.e = glm::vec3(1.0, 12.0, 98.8);
+		addOrUpdateColliders(collidersOBB, "paredSur", ParedSurCollider, ModelMatrixColliderParedSur);
+
+		// Collider de Pared Este
+		glm::mat4 ModelMatrixColliderParedEste = glm::mat4(1.0f);
+		AbstractModel::OBB ParedEsteCollider;
+		// Set the orientation of collider before doing the scale
+		ParedEsteCollider.u = glm::quat_cast(ModelMatrixColliderParedEste);
+		ModelMatrixColliderParedEste = glm::translate(
+			ModelMatrixColliderParedEste, glm::vec3(0.0, 10.0, 100.0));
+		ModelMatrixColliderParedEste = glm::scale(ModelMatrixColliderParedEste,
+			glm::vec3(98.8, 12.0, 1.0));
+		ParedEsteCollider.c = glm::vec3(ModelMatrixColliderParedEste[3]);
+		ParedEsteCollider.e = glm::vec3(98.8, 12.0, 1.0);
+		addOrUpdateColliders(collidersOBB, "paredEste", ParedEsteCollider, ModelMatrixColliderParedEste);
+
+		// Collider de Pared Oeste
+		glm::mat4 ModelMatrixColliderParedOeste = glm::mat4(1.0f);
+		AbstractModel::OBB ParedOesteCollider;
+		// Set the orientation of collider before doing the scale
+		ParedOesteCollider.u = glm::quat_cast(ModelMatrixColliderParedOeste);
+		ModelMatrixColliderParedOeste = glm::translate(
+			ModelMatrixColliderParedOeste, glm::vec3(0.0, 10.0, -100.0));
+		ModelMatrixColliderParedOeste = glm::scale(ModelMatrixColliderParedOeste,
+			glm::vec3(98.8, 12.0, 1.0));
+		ParedOesteCollider.c = glm::vec3(ModelMatrixColliderParedOeste[3]);
+		ParedOesteCollider.e = glm::vec3(98.8, 12.0, 1.0);
+		addOrUpdateColliders(collidersOBB, "paredOeste", ParedOesteCollider, ModelMatrixColliderParedOeste);
 
 		//Collider del la rock
 		AbstractModel::SBB rockCollider;
@@ -1759,22 +1592,6 @@ void applicationLoop() {
 			lampCollider.e = modelLampPost2.getObb().e * glm::vec3(1.0, 1.0, 1.0);
 			std::get<0>(collidersOBB.find("lamp2-" + std::to_string(i))->second) = lampCollider;
 		}
-
-		// Collider de mayow
-		AbstractModel::OBB mayowCollider;
-		glm::mat4 modelmatrixColliderMayow = glm::mat4(modelMatrixMayow);
-		modelmatrixColliderMayow = glm::rotate(modelmatrixColliderMayow,
-				glm::radians(-90.0f), glm::vec3(1, 0, 0));
-		// Set the orientation of collider before doing the scale
-		mayowCollider.u = glm::quat_cast(modelmatrixColliderMayow);
-		modelmatrixColliderMayow = glm::scale(modelmatrixColliderMayow, glm::vec3(0.021, 0.021, 0.021));
-		modelmatrixColliderMayow = glm::translate(modelmatrixColliderMayow,
-				glm::vec3(mayowModelAnimate.getObb().c.x,
-						mayowModelAnimate.getObb().c.y,
-						mayowModelAnimate.getObb().c.z));
-		mayowCollider.e = mayowModelAnimate.getObb().e * glm::vec3(0.021, 0.021, 0.021) * glm::vec3(0.787401574, 0.787401574, 0.787401574);
-		mayowCollider.c = glm::vec3(modelmatrixColliderMayow[3]);
-		addOrUpdateColliders(collidersOBB, "mayow", mayowCollider, modelMatrixMayow);
 
 		// Collider de Spyro
 		AbstractModel::OBB spyroCollider;
@@ -1830,26 +1647,6 @@ void applicationLoop() {
 			sphereCollider.enableWireMode();
 			sphereCollider.render(matrixCollider);
 		}
-
-		// Esto es para ilustrar la transformacion inversa de los coliders
-		/*glm::vec3 cinv = glm::inverse(mayowCollider.u) * glm::vec4(rockCollider.c, 1.0);
-		glm::mat4 invColliderS = glm::mat4(1.0);
-		invColliderS = glm::translate(invColliderS, cinv);
-		invColliderS =  invColliderS * glm::mat4(mayowCollider.u);
-		invColliderS = glm::scale(invColliderS, glm::vec3(rockCollider.ratio * 2.0, rockCollider.ratio * 2.0, rockCollider.ratio * 2.0));
-		sphereCollider.setColor(glm::vec4(1.0, 1.0, 0.0, 1.0));
-		sphereCollider.enableWireMode();
-		sphereCollider.render(invColliderS);
-		glm::vec3 cinv2 = glm::inverse(mayowCollider.u) * glm::vec4(mayowCollider.c, 1.0);
-		glm::mat4 invColliderB = glm::mat4(1.0);
-		invColliderB = glm::translate(invColliderB, cinv2);
-		invColliderB = glm::scale(invColliderB, mayowCollider.e * 2.0f);
-		boxCollider.setColor(glm::vec4(1.0, 1.0, 0.0, 1.0));
-		boxCollider.enableWireMode();
-		boxCollider.render(invColliderB);
-		// Se regresa el color blanco
-		sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-		boxCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));*/
 
 		/*******************************************
 		 * Test Colisions
@@ -1910,112 +1707,61 @@ void applicationLoop() {
 		}
 
 		std::map<std::string, bool>::iterator colIt;
-		for (colIt = collisionDetection.begin(); colIt != collisionDetection.end();
-				colIt++) {
+		for (colIt = collisionDetection.begin(); colIt != collisionDetection.end(); colIt++) {
 			std::map<std::string,
-					std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-					collidersSBB.find(colIt->first);
+				std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it = collidersOBB.find(colIt->first);
 			std::map<std::string,
-					std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
-					collidersOBB.find(colIt->first);
-			if (it != collidersSBB.end()) {
+				std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator jt = collidersSBB.find(colIt->first);
+			if (it != collidersOBB.end()) {
 				if (!colIt->second)
-					addOrUpdateColliders(collidersSBB, it->first);
-			}
-			if (jt != collidersOBB.end()) {
-				if (!colIt->second)
-					addOrUpdateColliders(collidersOBB, jt->first);
+					addOrUpdateColliders(collidersOBB, it->first);
 				else {
-					if (jt->first.compare("mayow") == 0)
-						modelMatrixMayow = std::get<1>(jt->second);
-					if (jt->first.compare("dart") == 0)
-						modelMatrixDart = std::get<1>(jt->second);
+					if (it->first.compare("spyro") == 0)
+						modelMatrixSpyro = std::get<1>(it->second);
 				}
 			}
-		}
-
-		/*******************************************
-		 * Interpolation key frames with disconect objects
-		 *******************************************/
-		if(record && modelSelected == 1){
-			matrixDartJoints.push_back(rotDartHead);
-			matrixDartJoints.push_back(rotDartLeftArm);
-			matrixDartJoints.push_back(rotDartLeftHand);
-			matrixDartJoints.push_back(rotDartRightArm);
-			matrixDartJoints.push_back(rotDartRightHand);
-			matrixDartJoints.push_back(rotDartLeftLeg);
-			matrixDartJoints.push_back(rotDartRightLeg);
-			if (saveFrame) {
-				appendFrame(myfile, matrixDartJoints);
-				saveFrame = false;
+			if (jt != collidersSBB.end()) {
+				if (!colIt->second)
+					addOrUpdateColliders(collidersSBB, jt->first);
 			}
-		}
-		else if(keyFramesDartJoints.size() > 0){
-			// Para reproducir el frame
-			interpolationDartJoints = numPasosDartJoints / (float) maxNumPasosDartJoints;
-			numPasosDartJoints++;
-			if (interpolationDartJoints > 1.0) {
-				numPasosDartJoints = 0;
-				interpolationDartJoints = 0;
-				indexFrameDartJoints = indexFrameDartJointsNext;
-				indexFrameDartJointsNext++;
-			}
-			if (indexFrameDartJointsNext > keyFramesDartJoints.size() - 1)
-				indexFrameDartJointsNext = 0;
-			rotDartHead = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 0, interpolationDartJoints);
-			rotDartLeftArm = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 1, interpolationDartJoints);
-			rotDartLeftHand = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 2, interpolationDartJoints);
-			rotDartRightArm = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 3, interpolationDartJoints);
-			rotDartRightHand = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 4, interpolationDartJoints);
-			rotDartLeftLeg = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 5, interpolationDartJoints);
-			rotDartRightLeg = interpolate(keyFramesDartJoints, indexFrameDartJoints, indexFrameDartJointsNext, 6, interpolationDartJoints);
-		}
-
-		if (record && modelSelected == 2) {
-			matrixDart.push_back(modelMatrixDart);
-			if (saveFrame) {
-				appendFrame(myfile, matrixDart);
-				saveFrame = false;
-			}
-		}
-		else if (keyFramesDart.size() > 0) {
-			// Para reproducir el frame
-			interpolationDart = numPasosDart / (float)maxNumPasosDart;
-			numPasosDart++;
-			if (interpolationDart > 1.0) {
-				numPasosDart = 0;
-				interpolationDart = 0;
-				indexFrameDart = indexFrameDartNext;
-				indexFrameDartNext++;
-			}
-			if (indexFrameDartNext > keyFramesDart.size() - 1)
-				indexFrameDartNext = 0;
-			modelMatrixDart = interpolate(keyFramesDart, indexFrameDart, indexFrameDartNext, 0, interpolationDart);
 		}
 
 		// Constantes de animaciones
 		rotHelHelY += 0.5;
 		animationIndex = 1;
 
+
+		//Movimiento Enemgigo
+		
+		vectorDirectorEnemigo = glm::vec3(modelMatrixSpyro[3][0] - modelMatrixEnemigo[3][0],
+										  modelMatrixSpyro[3][1] - modelMatrixEnemigo[3][1],
+										  modelMatrixSpyro[3][2] - modelMatrixEnemigo[3][2]);
+		float magnitud = sqrtf( vectorDirectorEnemigo.x * vectorDirectorEnemigo.x +
+								vectorDirectorEnemigo.y * vectorDirectorEnemigo.y +
+								vectorDirectorEnemigo.z * vectorDirectorEnemigo.z);
+		
+		if (magnitud <= 10.0f) {
+			//glm::normalize(vectorDirectorEnemigo);
+			vectorDirectorEnemigo = glm::vec3(vectorDirectorEnemigo.x / magnitud,
+				vectorDirectorEnemigo.y / magnitud,
+				vectorDirectorEnemigo.z / magnitud);
+			/*
+			std::cout << "Vector Director Enemigo: \n  " <<
+						 "En X: " << vectorDirectorEnemigo.x << "\n " <<
+						 "En Y: " << vectorDirectorEnemigo.y << "\n " <<
+						 "En Z: " << vectorDirectorEnemigo.z << "\n " << std::endl;*/
+			modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(vectorDirectorEnemigo.x * 0.07, 0.0, vectorDirectorEnemigo.z * 0.07));
+			//modelMatrixEnemigo = glm::rotate(modelMatrixEnemigo, 0.0f, glm::vec3(0.0, 1.0, 0.0));
+			enemigo_anim_index = 1;
+		}
+		else
+			enemigo_anim_index = 2;
+
 		/*******************************************
 		 * State machines
 		 *******************************************/
 
-		// State machine for the lambo car
-		switch(stateDoor){
-		case 0:
-			dorRotCount += 0.5;
-			if(dorRotCount > 75)
-				stateDoor = 1;
-			break;
-		case 1:
-			dorRotCount -= 0.5;
-			if(dorRotCount < 0){
-				dorRotCount = 0.0;
-				stateDoor = 0;
-			}
-			break;
-		}
+		
 
 		glfwSwapBuffers(window);
 	}
