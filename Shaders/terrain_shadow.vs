@@ -16,8 +16,8 @@ uniform mat4 model;
 
 uniform mat4 lightSpaceMatrix;
 
-uniform float density = 0.008;
-uniform float gradient = 1.5;
+uniform float density = 0.05;
+uniform float gradient = 1.8;
 
 void main(){
 	vec4 fragPosWorldSpace = model * vec4(in_position, 1.0);

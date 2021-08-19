@@ -5,7 +5,7 @@ out vec4 color;
 
 uniform samplerCube skybox;
 uniform float lowerlimit = 0.0;
-uniform float upperlimit = 0.02;
+uniform float upperlimit = 0.1;
 uniform vec3 fogColor;
 
 void main()

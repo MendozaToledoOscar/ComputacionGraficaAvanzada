@@ -1389,11 +1389,11 @@ void applicationLoop() {
 		modelMatrixRay = glm::translate(modelMatrixRay, glm::vec3(0.0, 1.0, 0.0));
 		glm::vec3 rayDirection = glm::normalize(glm::vec3(modelMatrixRay[2]));
 		glm::vec3 ori = glm::vec3(modelMatrixRay[3]);
-		glm::vec3 tar = ori + 20.0f * rayDirection;
-		glm::vec3 tarm = ori + 10.0f * rayDirection;
+		glm::vec3 tar = ori + 5.0f * rayDirection;
+		glm::vec3 tarm = ori + 2.5f * rayDirection;
 		modelMatrixRay[3] = glm::vec4(tarm, 1.0f);
 		modelMatrixRay = glm::rotate(modelMatrixRay, glm::radians(90.0f), glm::vec3(1.0, 0.0, 0.0));
-		modelMatrixRay = glm::scale(modelMatrixRay, glm::vec3(1.0, 20.0, 1.0));
+		modelMatrixRay = glm::scale(modelMatrixRay, glm::vec3(1.0, 5.0, 1.0));
 		cylinderRay.render(modelMatrixRay);
 
 		/*******************************************

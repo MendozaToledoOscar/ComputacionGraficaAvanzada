@@ -27,6 +27,9 @@
 #include "Headers/FirstPersonCamera.h"
 #include "Headers/ThirdPersonCamera.h"
 
+// Font rendering
+#include "Headers/FontTypeRendering.h"
+
 //GLM include
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -46,10 +49,18 @@
 // Include Colision headers functions
 #include "Headers/Colisiones.h"
 
+// Include Shadowbox
+#include "Headers/ShadowBox.h"
+
+// OpenAL include
+#include <AL/alut.h>
+
 #define ARRAY_SIZE_IN_ELEMENTS(a) (sizeof(a)/sizeof(a[0]))
 
 int screenWidth;
 int screenHeight;
+
+const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 
 GLFWwindow *window;
 
@@ -62,8 +73,13 @@ Shader shaderMulLighting;
 Shader shaderTerrain;
 //Shader para las particulas de fountain
 Shader shaderParticlesFountain;
+Shader shaderParticlesExplosion;
 //Shader para las particulas de fuego
 Shader shaderParticlesFire;
+//Shader para visualizar el buffer de profundiad
+Shader shaderViewDepth;
+//Shader pra dibujar el buffer de profundidad
+Shader shaderDepth;
 
 std::shared_ptr<Camera> camera(new ThirdPersonCamera());
 float distanceFromTarget = 7.0;
@@ -71,24 +87,32 @@ float distanceFromTarget = 7.0;
 Sphere skyboxSphere(20, 20);
 Box boxCollider;
 Sphere sphereCollider(10, 10);
+Box boxViewDepth;
+Box boxLightViewBox;
+
+ShadowBox* shadowBox;
 
 Cylinder cylinderRay(10, 10, 0.05, 0.05);
 
-// Models complex instances
-Model modelRock;
-Model modelAircraft;
-Model modelHeliChasis;
-Model modelHeliHeli;
 // Lamps
 Model modelLamp1;
 Model modelLamp2;
 Model modelLampPost2;
 // Hierba
-Model modelGrass;
+Model modelGrass_1;
+Model modelGrass_2;
+Model modelGrass_3;
 // Fountain
 Model modelFountain;
 
 // Modelos de Oscar
+
+// Cofre 
+Model modelCofre;
+
+//Tree
+Model modelTree;
+
 // Spyro
 Model spyroModelAnimate;
 // Diamante
@@ -100,8 +124,11 @@ Terrain terrain(-1, -1, 200, 20, "../Textures/Height_Map_OMT.png");
 
 GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint textureTerrainBackgroundID, textureTerrainRID, textureTerrainGID, textureTerrainBID, textureTerrainBlendMapID;
-GLuint textureParticleFountainID, textureParticleFireID, texId;
+GLuint textureParticleFountainID, textureParticleExplosionID, textureParticleFireID, texId;
 GLuint skyboxTextureID;
+
+// Modelo para el redener de texto
+FontTypeRendering::FontTypeRendering* modelText;
 
 GLenum types[6] = {
 GL_TEXTURE_CUBE_MAP_POSITIVE_X,
@@ -123,13 +150,110 @@ int lastMousePosX, offsetX = 0;
 int lastMousePosY, offsetY = 0;
 
 // Model matrix definitions
-glm::mat4 matrixModelRock = glm::mat4(1.0);
-glm::mat4 modelMatrixHeli = glm::mat4(1.0f);
-glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
-glm::mat4 modelMatrixFountain = glm::mat4(1.0f);
 glm::mat4 modelMatrixSpyro = glm::mat4(1.0f);
-glm::mat4 modelMatrixDiamante = glm::mat4(1.0f);
-glm::mat4 modelMatrixEnemigo = glm::mat4(1.0f);
+glm::mat4 modelMatrixActiveExplosion = glm::mat4(1.0f);
+// Enemigos Definicion
+std::vector<glm::mat4> modelMatrixEnemigoArray = { 
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)
+};
+std::vector<glm::vec3> EnemigoInitialPosition = { 
+	glm::vec3( 40.0, 0, -40.0), glm::vec3( 40.0, 0,   0.0), glm::vec3( 40.0, 0,  40.0), glm::vec3(  0.0, 0, -40.0), 
+	glm::vec3(-20.0, 0,  40.0), glm::vec3(-40.0, 0, -40.0), glm::vec3(-60.0, 0, -20.0), glm::vec3(-60.0, 0,  40.0),
+
+	glm::vec3(80.0, 0, -40.0), glm::vec3( 80.0, 0,   0.0), glm::vec3( 60.0, 0,  40.0), glm::vec3(  0.0, 0, -60.0),
+	glm::vec3(20.0, 0,  40.0), glm::vec3(-60.0, 0, -40.0), glm::vec3(-40.0, 0, -20.0), glm::vec3(-40.0, 0,  60.0),
+
+	glm::vec3(40.0, 0, -80.0), glm::vec3( 60.0, 0, -20.0), glm::vec3( 40.0, 0, 60.0), glm::vec3( 20.0, 0, -60.0),
+	glm::vec3( 0.0, 0,  80.0), glm::vec3(-40.0, 0, -60.0), glm::vec3(-80.0, 0,  0.0), glm::vec3(-60.0, 0,  60.0),
+
+	glm::vec3(80.0, 0, -80.0), glm::vec3( 60.0, 0,  20.0), glm::vec3( 60.0, 0, 60.0), glm::vec3(-20.0, 0, -60.0),
+	glm::vec3( 0.0, 0,  60.0), glm::vec3(-40.0, 0, -80.0), glm::vec3(-40.0, 0,  0.0), glm::vec3(-40.0, 0,  80.0)
+};
+std::vector<int> enemigo_anim_index_Array = { 
+	2,2,2,2, 2,2,2,2,
+	2,2,2,2, 2,2,2,2,
+	2,2,2,2, 2,2,2,2,
+	2,2,2,2, 2,2,2,2
+};
+
+std::vector<bool> enemigo_isVivo_Array = {
+	true,true,true,true, true,true,true,true,
+	true,true,true,true, true,true,true,true,
+	true,true,true,true, true,true,true,true,
+	true,true,true,true, true,true,true,true
+};
+// Cofres Definicion
+std::vector<glm::mat4> modelMatrixCofresArray = {
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), 
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)
+};
+std::vector<glm::vec3> CofresInitialPosition = {
+	glm::vec3(60.0, 0, -80.0), glm::vec3(60.0, 0,   0.0), glm::vec3(80.0, 0,  80.0), glm::vec3(0.0, 0, -80.0),
+	glm::vec3(0.0, 0,  40.0), glm::vec3(-80.0, 0, -40.0), glm::vec3(-80.0, 0, -20.0), glm::vec3(-40.0, 0,  40.0)
+};
+std::vector<bool> cofres_isVivo_Array = {
+	true,true,true,true,
+	true,true,true,true
+};
+
+// Diamante positions
+std::vector<glm::mat4> modelMatrixDiamantesArray = {
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)
+};
+std::vector<glm::vec3>  DiamantesInitialPosition = {
+	glm::vec3(10.0f, 0.0f, -15.0f), glm::vec3(60.0f, 0.0f, 10.0f),glm::vec3(-10.0f, 0.0f, -84.0f), glm::vec3(-60.0f, 0.0f, 10.0f),
+	glm::vec3(15.0f, 0.0f, -35.0f), glm::vec3(70.0f, 0.0f, 65.0f),glm::vec3(-20.0f, 0.0f, -90.0f), glm::vec3(-70.0f, 0.0f, 41.0f),
+	glm::vec3(30.0f, 0.0f, -90.0f), glm::vec3(80.0f, 0.0f, 71.0f),glm::vec3(-30.0f, 0.0f, -65.0f), glm::vec3(-80.0f, 0.0f, 87.0f),
+	glm::vec3(40.0f, 0.0f, -10.0f), glm::vec3(90.0f, 0.0f, 25.0f),glm::vec3(-40.0f, 0.0f, -35.0f), glm::vec3(-90.0f, 0.0f, 50.0f),
+	glm::vec3(50.0f, 0.0f, -80.0f), glm::vec3(75.0f, 0.0f, 11.0f),glm::vec3(-50.0f, 0.0f, -10.0f), glm::vec3(-90.0f, 0.0f, 27.0f)
+};
+std::vector<bool> diamantes_isVivo_Array = {
+	true,true,true,true,
+	true,true,true,true,
+	true,true,true,true,
+	true,true,true,true,
+	true,true,true,true
+};
+
+// Tree definition
+std::vector<glm::mat4> modelMatrixTreesArray = {
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f),
+	glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)
+};
+std::vector<glm::vec3>  TreesInitialPosition = {
+	glm::vec3(56.0f, 0.0f, -44.0f), glm::vec3(70.0f, 0.0f, 36.0f),glm::vec3(-53.0f, 0.0f, -44.0f), glm::vec3(-28.0f, 0.0f, 40.0f),
+	glm::vec3(46.0f, 0.0f, -10.0f), glm::vec3(73.0f, 0.0f, 74.0f),glm::vec3(-43.0f, 0.0f, -22.0f), glm::vec3(-28.0f, 0.0f, 45.0f),
+	glm::vec3(36.0f, 0.0f, -47.0f), glm::vec3(32.0f, 0.0f, 11.0f),glm::vec3(-33.0f, 0.0f, -22.0f), glm::vec3(-68.0f, 0.0f, 11.0f),
+	glm::vec3(26.0f, 0.0f, -16.0f), glm::vec3(25.0f, 0.0f, 22.0f),glm::vec3(-23.0f, 0.0f, -45.0f), glm::vec3(-48.0f, 0.0f, 66.0f),
+	glm::vec3(16.0f, 0.0f, -10.0f), glm::vec3(45.0f, 0.0f, 66.0f),glm::vec3(-13.0f, 0.0f, -20.0f), glm::vec3(-48.0f, 0.0f, 22.0f)
+};
+std::vector<float>  TreesInitialHeight = {
+	1.0f, 0.9f, 0.4f, 0.6f,
+	0.8f, 0.4f, 0.4f, 0.5f,
+	0.6f, 0.9f, 1.0f, 0.6f,
+	0.2f, 0.9f, 0.3f, 1.0f,
+	0.4f, 1.0f, 0.5, 0.6f,
+};
+ // Hierba
+std::vector<glm::vec3>  grassInitialPosition = {
+	glm::vec3(56.0f, 0.0f, -44.0f), glm::vec3(70.0f, 0.0f, 36.0f),glm::vec3(-53.0f, 0.0f, -44.0f), glm::vec3(-28.0f, 0.0f, 40.0f),
+	glm::vec3(46.0f, 0.0f, -10.0f), glm::vec3(73.0f, 0.0f, 74.0f),glm::vec3(-43.0f, 0.0f, -22.0f), glm::vec3(-28.0f, 0.0f, 45.0f),
+	glm::vec3(36.0f, 0.0f, -47.0f), glm::vec3(32.0f, 0.0f, 11.0f),glm::vec3(-33.0f, 0.0f, -22.0f), glm::vec3(-68.0f, 0.0f, 11.0f),
+	glm::vec3(26.0f, 0.0f, -16.0f), glm::vec3(25.0f, 0.0f, 22.0f),glm::vec3(-23.0f, 0.0f, -45.0f), glm::vec3(-48.0f, 0.0f, 66.0f),
+	glm::vec3(16.0f, 0.0f, -10.0f), glm::vec3(45.0f, 0.0f, 66.0f),glm::vec3(-13.0f, 0.0f, -20.0f), glm::vec3(-48.0f, 0.0f, 22.0f),
+	glm::vec3( 0.0f, 0.0f,   0.0f), glm::vec3(10.0f, 0.0f, 10.0f),glm::vec3(-20.0f, 0.0f, -20.0f), glm::vec3(-30.0, 0.0f, 30.0f),
+	glm::vec3(40.0f, 0.0f,   40.0f), glm::vec3(50.0f, 0.0f, 40.0f),glm::vec3(-60.0f, 0.0f, -30.0f), glm::vec3(-50.0, 0.0f, 0.0f)
+};
 
 int animationIndex = 1;
 int enemigo_anim_index = 2;
@@ -149,20 +273,9 @@ bool record = false;
 // Var animate helicopter
 float rotHelHelY = 0.0;
 
-
-// Lamps positions
-std::vector<glm::vec3> lamp1Position = { glm::vec3(-7.03, 0, -19.14), glm::vec3(
-		24.41, 0, -34.57), glm::vec3(-10.15, 0, -54.10) };
-std::vector<float> lamp1Orientation = { -17.0, -82.67, 23.70 };
-std::vector<glm::vec3> lamp2Position = { glm::vec3(-36.52, 0, -23.24),
-		glm::vec3(-52.73, 0, -3.90) };
-std::vector<float> lamp2Orientation = {21.37 + 90, -65.0 + 90};
-
 // Blending model unsorted
 std::map<std::string, glm::vec3> blendingUnsorted = {
-		{"aircraft", glm::vec3(10.0, 0.0, -17.5)},
-		{"heli", glm::vec3(5.0, 10.0, -5.0)},
-		{"fountain", glm::vec3(5.0, 0.0, -40.0)},
+		{"explosion", glm::vec3(10.0, 2.0, 17.5)},
 		{"fire", glm::vec3(0.0, 0.0, 7.0)}
 };
 
@@ -186,15 +299,80 @@ GLuint drawBuf = 1;
 float particleSize = 0.5, particleLifetime = 3.0;
 double currTimeParticlesAnimationFire, lastTimeParticlesAnimationFire;
 
+// Diamante contador
+int diamantesCount = 0;
+int diamantesTotal = 400;
+
+// Enemigos contador
+int enemigosCount = 0;
+
+// Life Spyro contador
+float spyroLifeCount = 100.0f;
+bool spyroAlive = true;
+
 // Jump Variables
 bool isJump = false;
 float gravedad = 1.81;
 double tmv = 0;
 double startTimeJump = 0;
+// Shot Variables
+bool isShot = false;
+double tmv_shot = 0;
+double startTimeShot = 0;
+
+// Explosion variable
+bool enableExplosion = false;
+float contadorExplosion = 0.0f;
 
 // Colliders
 std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> > collidersOBB;
 std::map<std::string, std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> > collidersSBB;
+
+// Framesbuffers
+GLuint depthMap, depthMapFBO;
+
+/**********************
+ * OpenAL config
+ */
+
+ // OpenAL Defines
+#define NUM_BUFFERS 4
+#define NUM_SOURCES 35
+#define NUM_ENVIRONMENTS 1
+// Listener
+ALfloat listenerPos[] = { 0.0, 0.0, 4.0 };
+ALfloat listenerVel[] = { 0.0, 0.0, 0.0 };
+ALfloat listenerOri[] = { 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
+// Source 0
+ALfloat source0Pos[] = { -2.0, 0.0, 0.0 };
+ALfloat source0Vel[] = { 0.0, 0.0, 0.0 };
+// Source 1
+ALfloat source1Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source1Vel[] = { 0.0, 0.0, 0.0 };
+// Source 2
+ALfloat source2Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source2Vel[] = { 0.0, 0.0, 0.0 };
+
+// Source Enemigo 
+ALfloat sourceEnemigoVel[] = { 0.0, 0.0, 0.0 };
+
+// Buffers
+ALuint buffer[NUM_BUFFERS];
+ALuint source[NUM_SOURCES];
+ALuint environment[NUM_ENVIRONMENTS];
+// Configs
+ALsizei size, freq;
+ALenum format;
+ALvoid* data;
+int ch;
+ALboolean loop;
+std::vector<bool> sourcesPlay = { 
+	true, true, true, 
+	true, true, true, true,		true, true, true, true,
+	true, true, true, true,		true, true, true, true,
+	true, true, true, true,		true, true, true, true,
+	true, true, true, true,		true, true, true, true
+};
 
 // Se definen todos las funciones.
 void reshapeCallback(GLFWwindow *Window, int widthRes, int heightRes);
@@ -207,6 +385,11 @@ void initParticleBuffers();
 void init(int width, int height, std::string strTitle, bool bFullScreen);
 void destroy();
 bool processInput(bool continueApplication = true);
+void prepareScene();
+void prepareDepthScene();
+void renderScene(bool renderParticles = true);
+bool buscaColliderOBB(std::string nombre, std::string second_nombre);
+bool buscaColliderSBB(std::string nombre);
 
 void initParticleBuffers() {
 	// Generate the buffers
@@ -377,15 +560,15 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 
 	if (bFullScreen)
 		window = glfwCreateWindow(width, height, strTitle.c_str(),
-				glfwGetPrimaryMonitor(), nullptr);
+			glfwGetPrimaryMonitor(), nullptr);
 	else
 		window = glfwCreateWindow(width, height, strTitle.c_str(), nullptr,
-				nullptr);
+			nullptr);
 
 	if (window == nullptr) {
 		std::cerr
-				<< "Error to create GLFW window, you can try download the last version of your video card that support OpenGL 3.3+"
-				<< std::endl;
+			<< "Error to create GLFW window, you can try download the last version of your video card that support OpenGL 3.3+"
+			<< std::endl;
 		destroy();
 		exit(-1);
 	}
@@ -417,10 +600,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// Inicialización de los shaders
 	shader.initialize("../Shaders/colorShader.vs", "../Shaders/colorShader.fs");
 	shaderSkybox.initialize("../Shaders/skyBox.vs", "../Shaders/skyBox_fog.fs");
-	shaderMulLighting.initialize("../Shaders/iluminacion_textura_animation_fog.vs", "../Shaders/multipleLights_fog.fs");
-	shaderTerrain.initialize("../Shaders/terrain_fog.vs", "../Shaders/terrain_fog.fs");
+	shaderMulLighting.initialize("../Shaders/iluminacion_textura_animation_shadow.vs", "../Shaders/multipleLights_shadow.fs");
+	shaderTerrain.initialize("../Shaders/terrain_shadow.vs", "../Shaders/terrain_shadow.fs");
 	shaderParticlesFountain.initialize("../Shaders/particlesFountain.vs", "../Shaders/particlesFountain.fs");
-	shaderParticlesFire.initialize("../Shaders/particlesSmoke.vs", "../Shaders/particlesSmoke.fs", {"Position", "Velocity", "Age"});//shaderParticlesFire.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
+	shaderParticlesExplosion.initialize("../Shaders/particlesExplosion.vs", "../Shaders/particlesExplosion.fs");
+	shaderParticlesFire.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
+	shaderViewDepth.initialize("../Shaders/texturizado.vs", "../Shaders/texturizado_depth_view.fs");
+	shaderDepth.initialize("../Shaders/shadow_mapping_depth.vs", "../Shaders/shadow_mapping_depth.fs");
+
 	// Inicializacion de los objetos.
 	skyboxSphere.init();
 	skyboxSphere.setShader(&shaderSkybox);
@@ -434,21 +621,16 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	sphereCollider.setShader(&shader);
 	sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
-	modelRock.loadModel("../models/rock/rock.obj");
-	modelRock.setShader(&shaderMulLighting);
+	cylinderRay.init();
+	cylinderRay.setShader(&shader);
+	cylinderRay.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
-	modelAircraft.loadModel("../models/Aircraft_obj/E 45 Aircraft_obj.obj");
-	modelAircraft.setShader(&shaderMulLighting);
+	boxViewDepth.init();
+	boxViewDepth.setShader(&shaderViewDepth);
 
 	terrain.init();
 	terrain.setShader(&shaderTerrain);
 	terrain.setPosition(glm::vec3(100, 0, 100));
-
-	// Helicopter
-	modelHeliChasis.loadModel("../models/Helicopter/Mi_24_chasis.obj");
-	modelHeliChasis.setShader(&shaderMulLighting);
-	modelHeliHeli.loadModel("../models/Helicopter/Mi_24_heli.obj");
-	modelHeliHeli.setShader(&shaderMulLighting);
 
 	//Lamp models
 	modelLamp1.loadModel("../models/Street-Lamp-Black/objLamp.obj");
@@ -459,12 +641,25 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	modelLampPost2.setShader(&shaderMulLighting);
 
 	//Grass
-	modelGrass.loadModel("../models/grass/grassModel.obj");
-	modelGrass.setShader(&shaderMulLighting);
+	modelGrass_1.loadModel("../models/grass2/grass_1.obj");
+	modelGrass_1.setShader(&shaderMulLighting);
+	modelGrass_2.loadModel("../models/grass2/grass_2.obj");
+	modelGrass_2.setShader(&shaderMulLighting);
+	modelGrass_3.loadModel("../models/grass2/grass_3.obj");
+	modelGrass_3.setShader(&shaderMulLighting);
+
 
 	//Fountain
 	modelFountain.loadModel("../models/fountain/fountain.obj");
 	modelFountain.setShader(&shaderMulLighting);
+
+	//Cofre
+	modelCofre.loadModel("../models/cofre/cofre.fbx");
+	modelCofre.setShader(&shaderMulLighting);
+
+	//Tree
+	modelTree.loadModel("../models/tree2/tree2.fbx");
+	modelTree.setShader(&shaderMulLighting);
 
 	//Spyro
 	spyroModelAnimate.loadModel("../models/Spyro/spyro.fbx");
@@ -484,8 +679,8 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 
 	// Definimos el tamanio de la imagen
 	int imageWidth, imageHeight;
-	FIBITMAP *bitmap;
-	unsigned char *data;
+	FIBITMAP* bitmap;
+	unsigned char* data;
 
 	// Carga de texturas para el skybox
 	Texture skyboxTexture = Texture("");
@@ -500,13 +695,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 
 	for (int i = 0; i < ARRAY_SIZE_IN_ELEMENTS(types); i++) {
 		skyboxTexture = Texture(fileNames[i]);
-		FIBITMAP *bitmap = skyboxTexture.loadImage(true);
-		unsigned char *data = skyboxTexture.convertToData(bitmap, imageWidth,
-				imageHeight);
+		FIBITMAP* bitmap = skyboxTexture.loadImage(true);
+		unsigned char* data = skyboxTexture.convertToData(bitmap, imageWidth,
+			imageHeight);
 		if (data) {
 			glTexImage2D(types[i], 0, GL_RGBA, imageWidth, imageHeight, 0,
-			GL_BGRA, GL_UNSIGNED_BYTE, data);
-		} else
+				GL_BGRA, GL_UNSIGNED_BYTE, data);
+		}
+		else
 			std::cout << "Failed to load texture" << std::endl;
 		skyboxTexture.freeImage(bitmap);
 	}
@@ -696,6 +892,26 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		std::cout << "Failed to load texture" << std::endl;
 	textureParticlesFountain.freeImage(bitmap);
 
+	Texture textureParticlesExplosion("../Textures/fire.png");
+	bitmap = textureParticlesExplosion.loadImage();
+	data = textureParticlesExplosion.convertToData(bitmap, imageWidth, imageHeight);
+	glGenTextures(1, &textureParticleExplosionID);
+	glBindTexture(GL_TEXTURE_2D, textureParticleExplosionID);
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);// set texture wrapping to GL_REPEAT (default wrapping method)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
+			GL_BGRA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else
+		std::cout << "Failed to load texture" << std::endl;
+	textureParticlesExplosion.freeImage(bitmap);
+
 	Texture textureParticleFire("../Textures/fire.png");
 	bitmap = textureParticleFire.loadImage();
 	data = textureParticleFire.convertToData(bitmap, imageWidth, imageHeight);
@@ -722,7 +938,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	generator.seed(rd());
 	int size = nParticlesFire * 2;
 	std::vector<GLfloat> randData(size);
-	for( int i = 0; i < randData.size(); i++ ) {
+	for (int i = 0; i < randData.size(); i++) {
 		randData[i] = distr01(generator);
 	}
 
@@ -738,17 +954,17 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	shaderParticlesFire.setInt("RandomTex", 1);
 	shaderParticlesFire.setFloat("ParticleLifetime", particleLifetime);
 	shaderParticlesFire.setFloat("ParticleSize", particleSize);
-	shaderParticlesFire.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0.0f,0.1f,0.0f)));
+	shaderParticlesFire.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0.0f, 0.1f, 0.0f)));
 	shaderParticlesFire.setVectorFloat3("Emitter", glm::value_ptr(glm::vec3(0.0f)));
 
 	glm::mat3 basis;
 	glm::vec3 u, v, n;
-	v = glm::vec3(0,1,0);
-	n = glm::cross(glm::vec3(1,0,0), v);
-	if( glm::length(n) < 0.00001f ) {
-		n = glm::cross(glm::vec3(0,1,0), v);
+	v = glm::vec3(0, 1, 0);
+	n = glm::cross(glm::vec3(1, 0, 0), v);
+	if (glm::length(n) < 0.00001f) {
+		n = glm::cross(glm::vec3(0, 1, 0), v);
 	}
-	u = glm::cross(v,n);
+	u = glm::cross(v, n);
 	basis[0] = glm::normalize(u);
 	basis[1] = glm::normalize(v);
 	basis[2] = glm::normalize(n);
@@ -763,6 +979,115 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	 * Inicializacion de los buffers del fuego
 	 *******************************************/
 	initParticleBuffersFire();
+
+	/*******************************************
+	 * Inicializacion del framebuffer para
+	 * almacenar el buffer de profunidadad
+	 *******************************************/
+	glGenFramebuffers(1, &depthMapFBO);
+	glGenTextures(1, &depthMap);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+		SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	/*******************************************
+	 * OpenAL init
+	 *******************************************/
+	alutInit(0, nullptr);
+	alListenerfv(AL_POSITION, listenerPos);
+	alListenerfv(AL_VELOCITY, listenerVel);
+	alListenerfv(AL_ORIENTATION, listenerOri);
+	alGetError(); // clear any error messages
+	if (alGetError() != AL_NO_ERROR) {
+		printf("- Error creating buffers !!\n");
+		exit(1);
+	}
+	else {
+		printf("init() - No errors yet.");
+	}
+	// Config source 0
+	// Generate buffers, or else no sound will happen!
+	alGenBuffers(NUM_BUFFERS, buffer);
+	buffer[0] = alutCreateBufferFromFile("../sounds/fountain.wav");
+	buffer[1] = alutCreateBufferFromFile("../sounds/fire.wav");
+	buffer[2] = alutCreateBufferFromFile("../sounds/darth_vader.wav");
+	buffer[3] = alutCreateBufferFromFile("../sounds/zombie_groan.wav");
+	int errorAlut = alutGetError();
+	if (errorAlut != ALUT_ERROR_NO_ERROR) {
+		printf("- Error open files with alut %d !!\n", errorAlut);
+		exit(2);
+	}
+
+
+	alGetError(); /* clear error */
+	alGenSources(NUM_SOURCES, source);
+
+	if (alGetError() != AL_NO_ERROR) {
+		printf("- Error creating sources !!\n");
+		exit(2);
+	}
+	else {
+		printf("init - no errors after alGenSources\n");
+	}
+	alSourcef(source[0], AL_PITCH, 1.0f);
+	alSourcef(source[0], AL_GAIN, 3.0f);
+	alSourcefv(source[0], AL_POSITION, source0Pos);
+	alSourcefv(source[0], AL_VELOCITY, source0Vel);
+	alSourcei(source[0], AL_BUFFER, buffer[0]);
+	alSourcei(source[0], AL_LOOPING, AL_TRUE);
+	alSourcef(source[0], AL_MAX_DISTANCE, 2000);
+
+	source1Pos[0] = modelMatrixSpyro[3].x;
+	source1Pos[1] = modelMatrixSpyro[3].y;
+	source1Pos[2] = modelMatrixSpyro[3].z;
+	alSourcef(source[1], AL_PITCH, 1.0f);
+	alSourcef(source[1], AL_GAIN, 0.0f);
+	alSourcefv(source[1], AL_POSITION, source1Pos);
+	alSourcefv(source[1], AL_VELOCITY, source1Vel);
+	alSourcei(source[1], AL_BUFFER, buffer[1]);
+	alSourcei(source[1], AL_LOOPING, AL_TRUE);
+	alSourcef(source[1], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[2], AL_PITCH, 1.0f);
+	alSourcef(source[2], AL_GAIN, 0.3f);
+	alSourcefv(source[2], AL_POSITION, source2Pos);
+	alSourcefv(source[2], AL_VELOCITY, source2Vel);
+	alSourcei(source[2], AL_BUFFER, buffer[2]);
+	alSourcei(source[2], AL_LOOPING, AL_TRUE);
+	alSourcef(source[2], AL_MAX_DISTANCE, 500);
+
+	for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+		ALfloat sourceEnemigoPos[] = { 0.0, 0.0, 0.0 };
+		sourceEnemigoPos[0] = modelMatrixEnemigoArray[i][3].x;
+		sourceEnemigoPos[1] = modelMatrixEnemigoArray[i][3].y;
+		sourceEnemigoPos[2] = modelMatrixEnemigoArray[i][3].z;
+		int indice = i + 3;
+		alSourcef(source[indice], AL_PITCH, 1.0f);
+		alSourcef(source[indice], AL_GAIN, 1.0f);
+		alSourcefv(source[indice], AL_POSITION, sourceEnemigoPos);
+		alSourcefv(source[indice], AL_VELOCITY, sourceEnemigoVel);
+		alSourcei(source[indice], AL_BUFFER, buffer[3]);
+		alSourcei(source[indice], AL_LOOPING, AL_TRUE);
+		alSourcef(source[indice], AL_MAX_DISTANCE, 100);
+	}
+
+	// Se inicializa el modelo de texeles.
+	modelText = new FontTypeRendering::FontTypeRendering(screenWidth,
+		screenHeight);
+	modelText->Initialize();
 }
 
 void destroy() {
@@ -777,6 +1102,7 @@ void destroy() {
 	shaderSkybox.destroy();
 	shaderTerrain.destroy();
 	shaderParticlesFountain.destroy();
+	shaderParticlesExplosion.destroy();
 	shaderParticlesFire.destroy();
 
 	// Basic objects Delete
@@ -788,15 +1114,15 @@ void destroy() {
 	terrain.destroy();
 
 	// Custom objects Delete
-	modelAircraft.destroy();
-	modelHeliChasis.destroy();
-	modelHeliHeli.destroy();
-	modelRock.destroy();
 	modelLamp1.destroy();
 	modelLamp2.destroy();
 	modelLampPost2.destroy();
-	modelGrass.destroy();
+	modelGrass_1.destroy();
+	modelGrass_2.destroy();
+	modelGrass_3.destroy();
 	modelFountain.destroy();
+	modelCofre.destroy();
+	modelTree.destroy();
 
 	// Custom objects animate
 	spyroModelAnimate.destroy();
@@ -816,6 +1142,7 @@ void destroy() {
 	glDeleteTextures(1, &textureTerrainBID);
 	glDeleteTextures(1, &textureTerrainBlendMapID);
 	glDeleteTextures(1, &textureParticleFountainID);
+	glDeleteTextures(1, &textureParticleExplosionID);
 	glDeleteTextures(1, &textureParticleFireID);
 
 	// Cube Maps Delete
@@ -904,26 +1231,29 @@ bool processInput(bool continueApplication) {
 		std::cout << "Right Stick Y axis: " << axes[4] << std::endl; // Left Trigger
 		std::cout << "Right Trigger/R2: " << axes[5] << std::endl;
 
-		if (fabs(axes[1]) > 0.2) {
+		if (fabs(axes[1]) > 0.2 && spyroAlive) {
 			modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, axes[1] * 0.1));
 			animationIndex = 0;
-		}if (fabs(axes[0]) > 0.2) {
+		}if (fabs(axes[0]) > 0.2 && spyroAlive) {
 			modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-axes[0] * 3.0f), glm::vec3(0, 1, 0));
 			animationIndex = 0;
 		}
 
-		if (fabs(axes[2]) > 0.2) {
+		if (fabs(axes[2]) > 0.2 && spyroAlive) {
 			camera->mouseMoveCamera(axes[2] * 3.0f, 0.0, deltaTime);
-		}if (fabs(axes[3]) > 0.2) {
+		}if (fabs(axes[3]) > 0.2 && spyroAlive) {
 			camera->mouseMoveCamera(0.0, axes[3], deltaTime);
 		}
 
 		const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
 		std::cout << "Número de botones disponibles :=>" << buttonCount << std::endl;
-		if (buttons[0] == GLFW_PRESS)
-			std::cout << "Se presiona x" << std::endl;
+		if (!isShot && buttons[1] == GLFW_PRESS) { // Boton B
+			isShot = true;
+			startTimeShot = currTime;
+			tmv_shot = 0;
+		}
 
-		if (!isJump && buttons[0] == GLFW_PRESS) {
+		if (!isJump && buttons[0] == GLFW_PRESS) { // Boton A
 			isJump = true;
 			startTimeJump = currTime;
 			tmv = 0;
@@ -936,6 +1266,11 @@ bool processInput(bool continueApplication) {
 		camera->mouseMoveCamera(0.0, offsetY, deltaTime);
 	offsetX = 0;
 	offsetY = 0;
+
+	if (!enableExplosion && glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+		enableExplosion = true;
+		contadorExplosion = 0.0f;
+	}
 
 	// Seleccionar modelo
 	if (enableCountSelected && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS){
@@ -973,28 +1308,32 @@ bool processInput(bool continueApplication) {
 		availableSave = true;
 
 	// Spyro animate model movements
-	if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+	if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && spyroAlive) {
 		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(1.0f), glm::vec3(0, 1, 0));
 		animationIndex = 0;
 	}
-	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && spyroAlive) {
 		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-1.0f), glm::vec3(0, 1, 0));
 		animationIndex = 0;
-	}if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+	}if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && spyroAlive) {
 		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, 0.08));
 		animationIndex = 0;
 	}
-	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && spyroAlive) {
 		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, -0.08));
 		animationIndex = 0;
 	}
-	/*
 	bool keySpaceStatus = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
-	if (!isJump && keySpaceStatus) {
+	if (!isJump && keySpaceStatus && spyroAlive) {
 		isJump = true;
 		tmv = 0;
 		startTimeJump = currTime;
-	}*/
+	}
+	if (!isShot && glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS && spyroAlive) { // Boton B
+		isShot = true;
+		startTimeShot = currTime;
+		tmv_shot = 0;
+	}
 
 	glfwPollEvents();
 	return continueApplication;
@@ -1008,20 +1347,21 @@ void applicationLoop() {
 	glm::vec3 target;
 	float angleTarget;
 
-	matrixModelRock = glm::translate(matrixModelRock, glm::vec3(-3.0, 0.0, 2.0));
+	for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+		modelMatrixEnemigoArray[i] = glm::translate(modelMatrixEnemigoArray[i], EnemigoInitialPosition[i]);
+	}
 
-	modelMatrixHeli = glm::translate(modelMatrixHeli, glm::vec3(5.0, 10.0, -5.0));
+	for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+		modelMatrixCofresArray[i] = glm::translate(modelMatrixCofresArray[i], CofresInitialPosition[i]);
+	}
 
-	modelMatrixAircraft = glm::translate(modelMatrixAircraft, glm::vec3(10.0, 2.0, -17.5));
+	for (int i = 0; i < modelMatrixDiamantesArray.size(); i++) {
+		modelMatrixDiamantesArray[i] = glm::translate(modelMatrixDiamantesArray[i], DiamantesInitialPosition[i]);
+	}
 
-	modelMatrixDiamante = glm::translate(modelMatrixDiamante, glm::vec3(10.0f, 0.0f, -10.0f));
-
-	modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(10.0f, 0.0f, 5.0f));
-
-	modelMatrixFountain = glm::translate(modelMatrixFountain, glm::vec3(5.0, 0.0, -40.0));
-	modelMatrixFountain[3][1] = terrain.getHeightTerrain(modelMatrixFountain[3][0] , modelMatrixFountain[3][2]) + 0.2;
-	modelMatrixFountain = glm::scale(modelMatrixFountain, glm::vec3(10.0f, 10.0f, 10.0f));
-
+	for (int i = 0; i < modelMatrixTreesArray.size(); i++) {
+		modelMatrixTreesArray[i] = glm::translate(modelMatrixTreesArray[i], TreesInitialPosition[i]);
+	}
 
 	lastTime = TimeManager::Instance().GetTime();
 
@@ -1031,6 +1371,10 @@ void applicationLoop() {
 
 	currTimeParticlesAnimationFire = lastTime;
 	lastTimeParticlesAnimationFire = lastTime;
+
+	glm::vec3 lightPos = glm::vec3(10.0, 10.0, 0.0);
+
+	shadowBox = new ShadowBox(-lightPos, camera.get(), 15.0f, 0.1f, 45.0f);
 
 	while (psi) {
 		currTime = TimeManager::Instance().GetTime();
@@ -1045,7 +1389,7 @@ void applicationLoop() {
 
 		std::map<std::string, bool> collisionDetection;
 
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
 				(float) screenWidth / (float) screenHeight, 0.01f, 100.0f);
@@ -1066,6 +1410,23 @@ void applicationLoop() {
 		camera->updateCamera();
 		view = camera->getViewMatrix();
 
+		shadowBox->update(screenWidth, screenHeight);
+		glm::vec3 centerBox = shadowBox->getCenter();
+
+		// Matriz de proyección del shadow mapping
+		glm::mat4 lightProjection = glm::mat4(1.0f), lightView = glm::mat4(1.0f);
+		glm::mat4 lightSpaceMatrix;
+		//float near_plane = 0.1f, far_plane = 20.0f;
+		lightProjection[0][0] = 2.0f / shadowBox->getWidth();
+		lightProjection[1][1] = 2.0f / shadowBox->getHeight();
+		lightProjection[2][2] = -2.0f / shadowBox->getLength();
+		lightProjection[3][3] = 1.0f;
+
+		//lightProjection = glm::ortho(-25.0f, 25.0f, -25.0f, 25.0f, near_plane, far_plane);
+		lightView = glm::lookAt(centerBox, centerBox + glm::normalize(-lightPos), glm::vec3(0.0, 1.0, 0.0));
+		lightSpaceMatrix = lightProjection * lightView;
+		shaderDepth.setMatrix4("lightSpaceMatrix", 1, false, glm::value_ptr(lightSpaceMatrix));
+
 		// Settea la matriz de vista y projection al shader con solo color
 		shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
 		shader.setMatrix4("view", 1, false, glm::value_ptr(view));
@@ -1077,19 +1438,27 @@ void applicationLoop() {
 				glm::value_ptr(glm::mat4(glm::mat3(view))));
 		// Settea la matriz de vista y projection al shader con multiples luces
 		shaderMulLighting.setMatrix4("projection", 1, false,
-					glm::value_ptr(projection));
+				glm::value_ptr(projection));
 		shaderMulLighting.setMatrix4("view", 1, false,
 				glm::value_ptr(view));
+		shaderMulLighting.setMatrix4("lightSpaceMatrix", 1, false,
+				glm::value_ptr(lightSpaceMatrix));
 		// Settea la matriz de vista y projection al shader con multiples luces
 		shaderTerrain.setMatrix4("projection", 1, false,
-					glm::value_ptr(projection));
+				glm::value_ptr(projection));
 		shaderTerrain.setMatrix4("view", 1, false,
 				glm::value_ptr(view));
+		shaderTerrain.setMatrix4("lightSpaceMatrix", 1, false,
+				glm::value_ptr(lightSpaceMatrix));
 		// Settea la matriz de vista y projection al shader para el fountain
 		shaderParticlesFountain.setMatrix4("projection", 1, false,
 					glm::value_ptr(projection));
+		shaderParticlesExplosion.setMatrix4("projection", 1, false,
+			glm::value_ptr(projection));
 		shaderParticlesFountain.setMatrix4("view", 1, false,
 				glm::value_ptr(view));
+		shaderParticlesExplosion.setMatrix4("view", 1, false,
+			glm::value_ptr(view));
 		// Settea la matriz de vista y projection al shader para el fuego
 		shaderParticlesFire.setMatrix4("projection", 1, false, glm::value_ptr(projection));
 		shaderParticlesFire.setMatrix4("view", 1, false, glm::value_ptr(view));
@@ -1105,24 +1474,24 @@ void applicationLoop() {
 		 * Propiedades Luz direccional
 		 *******************************************/
 		shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.05, 0.05, 0.05)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.4, 0.4, 0.4)));
-		shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
+		shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+		shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
+		shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+		shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
 
 		/*******************************************
 		 * Propiedades Luz direccional Terrain
 		 *******************************************/
 		shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
-		shaderTerrain.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.05, 0.05, 0.05)));
-		shaderTerrain.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
-		shaderTerrain.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.4, 0.4, 0.4)));
-		shaderTerrain.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
+		shaderTerrain.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+		shaderTerrain.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
+		shaderTerrain.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+		shaderTerrain.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
 
 		/*******************************************
 		 * Propiedades SpotLights
 		 *******************************************/
-		glm::vec3 spotPosition = glm::vec3(modelMatrixHeli * glm::vec4(0.32437, 0.226053, 1.79149, 1.0));
+		glm::vec3 spotPosition = glm::vec3(glm::vec4(0.0, 3.0, 0.0, 1.0));
 		shaderMulLighting.setInt("spotLightCount", 1);
 		shaderTerrain.setInt("spotLightCount", 1);
 		shaderMulLighting.setVectorFloat3("spotLights[0].light.ambient", glm::value_ptr(glm::vec3(0.0, 0.0, 0.0)));
@@ -1149,189 +1518,86 @@ void applicationLoop() {
 		/*******************************************
 		 * Propiedades PointLights
 		 *******************************************/
-		shaderMulLighting.setInt("pointLightCount", lamp1Position.size() + lamp2Orientation.size());
-		shaderTerrain.setInt("pointLightCount", lamp1Position.size() + lamp2Orientation.size());
-		for (int i = 0; i < lamp1Position.size(); i++){
+		shaderMulLighting.setInt("pointLightCount", DiamantesInitialPosition.size());
+		shaderTerrain.setInt("pointLightCount", DiamantesInitialPosition.size());
+		for (int i = 0; i < DiamantesInitialPosition.size(); i++){
 			glm::mat4 matrixAdjustLamp = glm::mat4(1.0f);
-			matrixAdjustLamp = glm::translate(matrixAdjustLamp, lamp1Position[i]);
-			matrixAdjustLamp = glm::rotate(matrixAdjustLamp, glm::radians(lamp1Orientation[i]), glm::vec3(0, 1, 0));
-			matrixAdjustLamp = glm::scale(matrixAdjustLamp, glm::vec3(0.5, 0.5, 0.5));
-			matrixAdjustLamp = glm::translate(matrixAdjustLamp, glm::vec3(0, 10.3585, 0));
+			matrixAdjustLamp = glm::translate(matrixAdjustLamp, DiamantesInitialPosition[i]);
+			matrixAdjustLamp = glm::scale(matrixAdjustLamp, glm::vec3(0.008, 0.008, 0.008));
+			matrixAdjustLamp = glm::translate(matrixAdjustLamp, glm::vec3(0, 0.5, 0));
 			glm::vec3 lampPosition = glm::vec3(matrixAdjustLamp[3]);
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.ambient", glm::value_ptr(glm::vec3(0.2, 0.16, 0.01)));
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.4, 0.32, 0.02)));
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.specular", glm::value_ptr(glm::vec3(0.6, 0.58, 0.03)));
+			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.ambient", glm::value_ptr(glm::vec3(0.8, 0.4, 0.0)));
+			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.0)));
+			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.specular", glm::value_ptr(glm::vec3(0.9, 0.1, 0.0)));
 			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(i) + "].position", glm::value_ptr(lampPosition));
 			shaderMulLighting.setFloat("pointLights[" + std::to_string(i) + "].constant", 1.0);
 			shaderMulLighting.setFloat("pointLights[" + std::to_string(i) + "].linear", 0.09);
-			shaderMulLighting.setFloat("pointLights[" + std::to_string(i) + "].quadratic", 0.01);
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.ambient", glm::value_ptr(glm::vec3(0.2, 0.16, 0.01)));
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.4, 0.32, 0.02)));
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.specular", glm::value_ptr(glm::vec3(0.6, 0.58, 0.03)));
+			shaderMulLighting.setFloat("pointLights[" + std::to_string(i) + "].quadratic", 0.1);
+			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.ambient", glm::value_ptr(glm::vec3(0.8, 0.4, 0.0)));
+			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.0)));
+			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].light.specular", glm::value_ptr(glm::vec3(0.9, 0.1, 0.0)));
 			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(i) + "].position", glm::value_ptr(lampPosition));
 			shaderTerrain.setFloat("pointLights[" + std::to_string(i) + "].constant", 1.0);
 			shaderTerrain.setFloat("pointLights[" + std::to_string(i) + "].linear", 0.09);
-			shaderTerrain.setFloat("pointLights[" + std::to_string(i) + "].quadratic", 0.02);
-		}
-		for (int i = 0; i < lamp2Position.size(); i++){
-			glm::mat4 matrixAdjustLamp = glm::mat4(1.0f);
-			matrixAdjustLamp = glm::translate(matrixAdjustLamp, lamp2Position[i]);
-			matrixAdjustLamp = glm::rotate(matrixAdjustLamp, glm::radians(lamp2Orientation[i]), glm::vec3(0, 1, 0));
-			matrixAdjustLamp = glm::scale(matrixAdjustLamp, glm::vec3(1.0, 1.0, 1.0));
-			matrixAdjustLamp = glm::translate(matrixAdjustLamp, glm::vec3(0.759521, 5.00174, 0));
-			glm::vec3 lampPosition = glm::vec3(matrixAdjustLamp[3]);
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.ambient", glm::value_ptr(glm::vec3(0.2, 0.16, 0.01)));
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.4, 0.32, 0.02)));
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.specular", glm::value_ptr(glm::vec3(0.6, 0.58, 0.03)));
-			shaderMulLighting.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].position", glm::value_ptr(lampPosition));
-			shaderMulLighting.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].constant", 1.0);
-			shaderMulLighting.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].linear", 0.09);
-			shaderMulLighting.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].quadratic", 0.01);
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.ambient", glm::value_ptr(glm::vec3(0.2, 0.16, 0.01)));
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.diffuse", glm::value_ptr(glm::vec3(0.4, 0.32, 0.02)));
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].light.specular", glm::value_ptr(glm::vec3(0.6, 0.58, 0.03)));
-			shaderTerrain.setVectorFloat3("pointLights[" + std::to_string(lamp1Position.size() + i) + "].position", glm::value_ptr(lampPosition));
-			shaderTerrain.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].constant", 1.0);
-			shaderTerrain.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].linear", 0.09);
-			shaderTerrain.setFloat("pointLights[" + std::to_string(lamp1Position.size() + i) + "].quadratic", 0.02);
+			shaderTerrain.setFloat("pointLights[" + std::to_string(i) + "].quadratic", 0.1);
 		}
 
 		/*******************************************
-		 * Terrain Cesped
+		 * 1. Render del buffer de profundidad desde el punto de vista de la luz
 		 *******************************************/
-		glm::mat4 modelCesped = glm::mat4(1.0);
-		modelCesped = glm::translate(modelCesped, glm::vec3(0.0, 0.0, 0.0));
-		modelCesped = glm::scale(modelCesped, glm::vec3(200.0, 0.001, 200.0));
-		// Se activa la textura del background
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, textureTerrainBackgroundID);
-		shaderTerrain.setInt("backgroundTexture", 0);
-		// Se activa la textura de tierra
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, textureTerrainRID);
-		shaderTerrain.setInt("rTexture", 1);
-		// Se activa la textura de hierba
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, textureTerrainGID);
-		shaderTerrain.setInt("gTexture", 2);
-		// Se activa la textura del camino
-		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, textureTerrainBID);
-		shaderTerrain.setInt("bTexture", 3);
-		// Se activa la textura del blend map
-		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, textureTerrainBlendMapID);
-		shaderTerrain.setInt("blendMapTexture", 4);
-		shaderTerrain.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(40, 40)));
-		terrain.render();
-		shaderTerrain.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
-		glBindTexture(GL_TEXTURE_2D, 0);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glCullFace(GL_FRONT);
+		prepareDepthScene();
+		renderScene(false);
+		glCullFace(GL_BACK);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		/*******************************************
-		 * Custom objects obj
+		 * Para visualizar la textura del mapa desde el punto de vista de la luz (Debug)
 		 *******************************************/
-		//Rock render
-		matrixModelRock[3][1] = terrain.getHeightTerrain(matrixModelRock[3][0], matrixModelRock[3][2]);
-		modelRock.render(matrixModelRock);
-		// Forze to enable the unit texture to 0 always ----------------- IMPORTANT
-		glActiveTexture(GL_TEXTURE0);
+		 // Reset viewport
+		 /*
+		 glViewport(0, 0, screenWidth, screenHeight);
+		 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		 // Render de la escena desde la luz en un cuadrado
+		 shaderViewDepth.setMatrix4("projection", 1, false, glm::value_ptr(glm::mat4(1.0)));
+		 shaderViewDepth.setMatrix4("view", 1, false, glm::value_ptr(glm::mat4(1.0)));
+		 shaderViewDepth.setFloat("near_plane", near_plane);
+		 shaderViewDepth.setFloat("far_plane", far_plane);
+		 glActiveTexture(GL_TEXTURE0);
+		 glBindTexture(GL_TEXTURE_2D, depthMap);
+		 boxViewDepth.setScale(glm::vec3(2.0, 2.0, 1.0));
+		 boxViewDepth.render();*/
 
-		// Render the lamps
-		for (int i = 0; i < lamp1Position.size(); i++){
-			lamp1Position[i].y = terrain.getHeightTerrain(lamp1Position[i].x, lamp1Position[i].z);
-			modelLamp1.setPosition(lamp1Position[i]);
-			modelLamp1.setScale(glm::vec3(0.5, 0.5, 0.5));
-			modelLamp1.setOrientation(glm::vec3(0, lamp1Orientation[i], 0));
-			modelLamp1.render();
-		}
-
-		for (int i = 0; i < lamp2Position.size(); i++){
-			lamp2Position[i].y = terrain.getHeightTerrain(lamp2Position[i].x, lamp2Position[i].z);
-			modelLamp2.setPosition(lamp2Position[i]);
-			modelLamp2.setScale(glm::vec3(1.0, 1.0, 1.0));
-			modelLamp2.setOrientation(glm::vec3(0, lamp2Orientation[i], 0));
-			modelLamp2.render();
-			modelLampPost2.setPosition(lamp2Position[i]);
-			modelLampPost2.setScale(glm::vec3(1.0, 1.0, 1.0));
-			modelLampPost2.setOrientation(glm::vec3(0, lamp2Orientation[i], 0));
-			modelLampPost2.render();
-		}
-
-		// Grass
-		glDisable(GL_CULL_FACE);
-		glm::vec3 grassPosition = glm::vec3(0.0, 0.0, 0.0);
-		grassPosition.y = terrain.getHeightTerrain(grassPosition.x, grassPosition.z);
-		modelGrass.setPosition(grassPosition);
-		modelGrass.render();
-		glEnable(GL_CULL_FACE);
-
-		// Fountain
-		glDisable(GL_CULL_FACE);
-		modelFountain.render(modelMatrixFountain);
-		glEnable(GL_CULL_FACE);
+		 /*******************************************
+		  * 3. Render de la escena normal
+		  *******************************************/
+		glViewport(0, 0, screenWidth, screenHeight);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		prepareScene();
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_2D, depthMap);
+		shaderMulLighting.setInt("shadowMap", 10);
+		shaderTerrain.setInt("shadowMap", 10);
 
 		/*******************************************
-		 * Custom Anim objects obj
-		 *******************************************/
-		
-		//Spyro
-		modelMatrixSpyro[3][1] = -gravedad * tmv * tmv + 3.5 * tmv + terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
-		tmv = currTime - startTimeJump;
-		if (modelMatrixSpyro[3][1] < terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2])) {
-			isJump = false;
-			modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
-		}
-		//modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
-		glm::mat4 modelMatrixSpyroBody = glm::mat4(modelMatrixSpyro);
-		modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
-		spyroModelAnimate.setAnimationIndex(animationIndex);
-		spyroModelAnimate.render(modelMatrixSpyroBody);
-				
-		// Enemigo
-
-		glm::vec3 enemigoDirection = glm::normalize(glm::vec3(	modelMatrixSpyro[3][0] - modelMatrixEnemigo[3][0],
-																modelMatrixSpyro[3][1] - modelMatrixEnemigo[3][1],
-																modelMatrixSpyro[3][2] - modelMatrixEnemigo[3][2]));
-		glm::vec3 enemigoUp = glm::vec3(0.0, 1.0, 0.0);
-		glm::vec3 enemigoRight = glm::normalize(glm::cross(enemigoUp, enemigoDirection));
-		glm::vec3 enemigoPos = glm::vec3(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][1], modelMatrixEnemigo[3][2]);
-
-		modelMatrixEnemigo[3][1] = terrain.getHeightTerrain(modelMatrixEnemigo[3][0], modelMatrixEnemigo[3][2]);
-		glm::mat4 modelMatrixEnemigoBody = glm::mat4(modelMatrixEnemigo);
-
-		modelMatrixEnemigoBody[0][0] = enemigoRight.x;		modelMatrixEnemigoBody[0][1] = enemigoRight.y;		modelMatrixEnemigoBody[0][2] = enemigoRight.z;
-		modelMatrixEnemigoBody[1][0] = enemigoUp.x;			modelMatrixEnemigoBody[1][1] = enemigoUp.y;			modelMatrixEnemigoBody[1][2] = enemigoUp.z;
-		modelMatrixEnemigoBody[2][0] = enemigoDirection.x;	modelMatrixEnemigoBody[2][1] = enemigoDirection.y;	modelMatrixEnemigoBody[2][2] = enemigoDirection.z;
-
-		modelMatrixEnemigoBody = glm::scale(modelMatrixEnemigoBody, glm::vec3(0.01, 0.01, 0.01));
-		enemigoModelAnimate.setAnimationIndex(enemigo_anim_index);
-		enemigoModelAnimate.render(modelMatrixEnemigoBody);
-
-		/*
-		// Diamante
-		modelMatrixDiamante[3][1] = terrain.getHeightTerrain(modelMatrixDiamante[3][0], modelMatrixDiamante[3][2]);
-		glm::mat4 modelMatrixDiamanteBody = glm::mat4(modelMatrixDiamante);
-		modelMatrixDiamanteBody = glm::scale(modelMatrixDiamanteBody, glm::vec3(0.01, 0.01, 0.01));
-		diamanteModelAnimate.setAnimationIndex(0);
-		diamanteModelAnimate.render(modelMatrixDiamanteBody);
-		glActiveTexture(GL_TEXTURE0);
-		*/
-
-		/*******************************************
-		 * Ray in Spyro view direction
-		 *******************************************/
-		/*
+		* Ray in Spyro view direction
+		*******************************************/
 		glm::mat4 modelMatrixRay = glm::mat4(modelMatrixSpyro);
 		modelMatrixRay = glm::translate(modelMatrixRay, glm::vec3(0.0, 1.0, 0.0));
 		glm::vec3 rayDirection = glm::normalize(glm::vec3(modelMatrixRay[2]));
 		glm::vec3 ori = glm::vec3(modelMatrixRay[3]);
-		glm::vec3 tar = ori + 20.0f * rayDirection;
-		glm::vec3 tarm = ori + 10.0f * rayDirection;
+		glm::vec3 tar = ori + 5.0f * rayDirection;
+		glm::vec3 tarm = ori + 2.5f * rayDirection;
 		modelMatrixRay[3] = glm::vec4(tarm, 1.0f);
 		modelMatrixRay = glm::rotate(modelMatrixRay, glm::radians(90.0f), glm::vec3(1.0, 0.0, 0.0));
-		modelMatrixRay = glm::scale(modelMatrixRay, glm::vec3(1.0, 20.0, 1.0));
-		cylinderRay.render(modelMatrixRay);
-		*/
+		modelMatrixRay = glm::scale(modelMatrixRay, glm::vec3(1.0, 5.0, 1.0));
+		//cylinderRay.render(modelMatrixRay);
+
 		/*******************************************
 		 * Skybox
 		 *******************************************/
@@ -1347,153 +1613,12 @@ void applicationLoop() {
 		skyboxSphere.render();
 		glCullFace(oldCullFaceMode);
 		glDepthFunc(oldDepthFuncMode);
-
-		/**********
-		 * Update the position with alpha objects
-		 */
-		// Update the aircraft
-		blendingUnsorted.find("aircraft")->second = glm::vec3(modelMatrixAircraft[3]);
-		// Update the helicopter
-		blendingUnsorted.find("heli")->second = glm::vec3(modelMatrixHeli[3]);
-
-		/**********
-		 * Sorter with alpha objects
-		 */
-		std::map<float, std::pair<std::string, glm::vec3>> blendingSorted;
-		std::map<std::string, glm::vec3>::iterator itblend;
-		for(itblend = blendingUnsorted.begin(); itblend != blendingUnsorted.end(); itblend++){
-			float distanceFromView = glm::length(camera->getPosition() - itblend->second);
-			blendingSorted[distanceFromView] = std::make_pair(itblend->first, itblend->second);
-		}
-
-		/**********
-		 * Render de las transparencias
-		 */
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glDisable(GL_CULL_FACE);
-		for(std::map<float, std::pair<std::string, glm::vec3> >::reverse_iterator it = blendingSorted.rbegin(); it != blendingSorted.rend(); it++){
-			if(it->second.first.compare("aircraft") == 0){
-				// Render for the aircraft model
-				glm::mat4 modelMatrixAircraftBlend = glm::mat4(modelMatrixAircraft);
-				modelMatrixAircraftBlend[3][1] = terrain.getHeightTerrain(modelMatrixAircraftBlend[3][0], modelMatrixAircraftBlend[3][2]) + 2.0;
-				modelAircraft.render(modelMatrixAircraftBlend);
-			}
-			else if(it->second.first.compare("heli") == 0){
-				// Helicopter
-				glm::mat4 modelMatrixHeliChasis = glm::mat4(modelMatrixHeli);
-				modelHeliChasis.render(modelMatrixHeliChasis);
-
-				glm::mat4 modelMatrixHeliHeli = glm::mat4(modelMatrixHeliChasis);
-				modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, -0.249548));
-				modelMatrixHeliHeli = glm::rotate(modelMatrixHeliHeli, rotHelHelY, glm::vec3(0, 1, 0));
-				modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, 0.249548));
-				modelHeliHeli.render(modelMatrixHeliHeli);
-			}
-			else if(it->second.first.compare("fountain") == 0){
-				/**********
-				 * Init Render particles systems
-				 */
-				glm::mat4 modelMatrixParticlesFountain = glm::mat4(1.0);
-				modelMatrixParticlesFountain = glm::translate(modelMatrixParticlesFountain, it->second.second);
-				modelMatrixParticlesFountain[3][1] = terrain.getHeightTerrain(modelMatrixParticlesFountain[3][0], modelMatrixParticlesFountain[3][2]) + 0.36 * 10.0;
-				modelMatrixParticlesFountain = glm::scale(modelMatrixParticlesFountain, glm::vec3(3.0, 3.0, 3.0));
-				currTimeParticlesAnimation = TimeManager::Instance().GetTime();
-				if(currTimeParticlesAnimation - lastTimeParticlesAnimation > 10.0)
-					lastTimeParticlesAnimation = currTimeParticlesAnimation;
-				//glDisable(GL_DEPTH_TEST);
-				glDepthMask(GL_FALSE);
-				// Set the point size
-				glPointSize(10.0f);
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, textureParticleFountainID);
-				shaderParticlesFountain.turnOn();
-				shaderParticlesFountain.setFloat("Time", float(currTimeParticlesAnimation - lastTimeParticlesAnimation));
-				shaderParticlesFountain.setFloat("ParticleLifetime", 3.5f);
-				shaderParticlesFountain.setInt("ParticleTex", 0);
-				shaderParticlesFountain.setVectorFloat3("Gravity", glm::value_ptr(glm::vec3(0.0f, -0.3f, 0.0f)));
-				shaderParticlesFountain.setMatrix4("model", 1, false, glm::value_ptr(modelMatrixParticlesFountain));
-				glBindVertexArray(VAOParticles);
-				glDrawArrays(GL_POINTS, 0, nParticles);
-				glDepthMask(GL_TRUE);
-				//glEnable(GL_DEPTH_TEST);
-				shaderParticlesFountain.turnOff();
-				/**********
-				 * End Render particles systems
-				 */
-			}
-			else if(it->second.first.compare("fire") == 0){
-				/**********
-				 * Init Render particles systems
-				 */
-				lastTimeParticlesAnimationFire = currTimeParticlesAnimationFire;
-				currTimeParticlesAnimationFire = TimeManager::Instance().GetTime();
-
-				shaderParticlesFire.setInt("Pass", 1);
-				shaderParticlesFire.setFloat("Time", currTimeParticlesAnimationFire);
-				shaderParticlesFire.setFloat("DeltaT", currTimeParticlesAnimationFire - lastTimeParticlesAnimationFire);
-
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_1D, texId);
-				glEnable(GL_RASTERIZER_DISCARD);
-				glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, feedback[drawBuf]);
-				glBeginTransformFeedback(GL_POINTS);
-				glBindVertexArray(particleArray[1-drawBuf]);
-				glVertexAttribDivisor(0,0);
-				glVertexAttribDivisor(1,0);
-				glVertexAttribDivisor(2,0);
-				glDrawArrays(GL_POINTS, 0, nParticlesFire);
-				glEndTransformFeedback();
-				glDisable(GL_RASTERIZER_DISCARD);
-
-				shaderParticlesFire.setInt("Pass", 2);
-				glm::mat4 modelFireParticles = glm::mat4(1.0);
-				modelFireParticles = glm::translate(modelFireParticles, it->second.second);
-				modelFireParticles[3][1] = terrain.getHeightTerrain(modelFireParticles[3][0], modelFireParticles[3][2]);
-				//modelFireParticles = glm::rotate(modelFireParticles, glm::radians(90.0f), glm::vec3(1, 0, 0));
-				//modelFireParticles = glm::scale(modelFireParticles, glm::vec3(0.1f, 1.0f, 1.0f));
-				shaderParticlesFire.setMatrix4("model", 1, false, glm::value_ptr(modelFireParticles));
-				shaderParticlesFire.setVectorFloat3("colorHumo", glm::value_ptr(glm::vec3(0.0, 0.0, 0.0)));
-
-				shaderParticlesFire.turnOn();
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, textureParticleFireID);
-				glDepthMask(GL_FALSE);
-				glBindVertexArray(particleArray[drawBuf]);
-				glVertexAttribDivisor(0,1);
-				glVertexAttribDivisor(1,1);
-				glVertexAttribDivisor(2,1);
-				glDrawArraysInstanced(GL_TRIANGLES, 0, 6, nParticlesFire);
-				glBindVertexArray(0);
-				glDepthMask(GL_TRUE);
-				drawBuf = 1 - drawBuf;
-				shaderParticlesFire.turnOff();
-
-				/**********
-				 * End Render particles systems
-				 */
-			}
-
-		}
-		glEnable(GL_CULL_FACE);
+		renderScene(true);
 
 		/*******************************************
 		 * Creacion de colliders
 		 * IMPORTANT do this before interpolations
 		 *******************************************/
-		
-		// Collider del aricraft
-		glm::mat4 modelMatrixColliderAircraft = glm::mat4(modelMatrixAircraft);
-		AbstractModel::OBB aircraftCollider;
-		// Set the orientation of collider before doing the scale
-		aircraftCollider.u = glm::quat_cast(modelMatrixAircraft);
-		modelMatrixColliderAircraft = glm::scale(modelMatrixColliderAircraft,
-				glm::vec3(1.0, 1.0, 1.0));
-		modelMatrixColliderAircraft = glm::translate(
-				modelMatrixColliderAircraft, modelAircraft.getObb().c);
-		aircraftCollider.c = glm::vec3(modelMatrixColliderAircraft[3]);
-		aircraftCollider.e = modelAircraft.getObb().e * glm::vec3(1.0, 1.0, 1.0);
-		addOrUpdateColliders(collidersOBB, "aircraft", aircraftCollider, modelMatrixAircraft);
 
 		/*************************************************************************************
 		* Paredes
@@ -1550,54 +1675,9 @@ void applicationLoop() {
 		ParedOesteCollider.e = glm::vec3(98.8, 12.0, 1.0);
 		addOrUpdateColliders(collidersOBB, "paredOeste", ParedOesteCollider, ModelMatrixColliderParedOeste);
 
-		//Collider del la rock
-		AbstractModel::SBB rockCollider;
-		glm::mat4 modelMatrixColliderRock= glm::mat4(matrixModelRock);
-		modelMatrixColliderRock = glm::scale(modelMatrixColliderRock, glm::vec3(1.0, 1.0, 1.0));
-		modelMatrixColliderRock = glm::translate(modelMatrixColliderRock, modelRock.getSbb().c);
-		rockCollider.c = glm::vec3(modelMatrixColliderRock[3]);
-		rockCollider.ratio = modelRock.getSbb().ratio * 1.0;
-		addOrUpdateColliders(collidersSBB, "rock", rockCollider, matrixModelRock);
-
-		// Lamps1 colliders
-		for (int i = 0; i < lamp1Position.size(); i++){
-			AbstractModel::OBB lampCollider;
-			glm::mat4 modelMatrixColliderLamp = glm::mat4(1.0);
-			modelMatrixColliderLamp = glm::translate(modelMatrixColliderLamp, lamp1Position[i]);
-			modelMatrixColliderLamp = glm::rotate(modelMatrixColliderLamp, glm::radians(lamp1Orientation[i]),
-					glm::vec3(0, 1, 0));
-			addOrUpdateColliders(collidersOBB, "lamp1-" + std::to_string(i), lampCollider, modelMatrixColliderLamp);
-			// Set the orientation of collider before doing the scale
-			lampCollider.u = glm::quat_cast(modelMatrixColliderLamp);
-			modelMatrixColliderLamp = glm::scale(modelMatrixColliderLamp, glm::vec3(0.5, 0.5, 0.5));
-			modelMatrixColliderLamp = glm::translate(modelMatrixColliderLamp, modelLamp1.getObb().c);
-			lampCollider.c = glm::vec3(modelMatrixColliderLamp[3]);
-			lampCollider.e = modelLamp1.getObb().e * glm::vec3(0.5, 0.5, 0.5);
-			std::get<0>(collidersOBB.find("lamp1-" + std::to_string(i))->second) = lampCollider;
-		}
-
-		// Lamps2 colliders
-		for (int i = 0; i < lamp2Position.size(); i++){
-			AbstractModel::OBB lampCollider;
-			glm::mat4 modelMatrixColliderLamp = glm::mat4(1.0);
-			modelMatrixColliderLamp = glm::translate(modelMatrixColliderLamp, lamp2Position[i]);
-			modelMatrixColliderLamp = glm::rotate(modelMatrixColliderLamp, glm::radians(lamp2Orientation[i]),
-					glm::vec3(0, 1, 0));
-			addOrUpdateColliders(collidersOBB, "lamp2-" + std::to_string(i), lampCollider, modelMatrixColliderLamp);
-			// Set the orientation of collider before doing the scale
-			lampCollider.u = glm::quat_cast(modelMatrixColliderLamp);
-			modelMatrixColliderLamp = glm::scale(modelMatrixColliderLamp, glm::vec3(1.0, 1.0, 1.0));
-			modelMatrixColliderLamp = glm::translate(modelMatrixColliderLamp, modelLampPost2.getObb().c);
-			lampCollider.c = glm::vec3(modelMatrixColliderLamp[3]);
-			lampCollider.e = modelLampPost2.getObb().e * glm::vec3(1.0, 1.0, 1.0);
-			std::get<0>(collidersOBB.find("lamp2-" + std::to_string(i))->second) = lampCollider;
-		}
-
 		// Collider de Spyro
 		AbstractModel::OBB spyroCollider;
 		glm::mat4 modelMatrixColliderSpyro = glm::mat4(modelMatrixSpyro);
-		//modelMatrixColliderSpyro = glm::rotate(modelMatrixColliderSpyro, glm::radians(180.0f), glm::vec3(0.0, 1.0, 0.0));
-		//modelMatrixColliderSpyro = glm::rotate(modelMatrixColliderSpyro, glm::radians(180.0f), glm::vec3(0.0, 0.0, 1.0));
 		spyroCollider.u = glm::quat_cast(modelMatrixColliderSpyro);
 		modelMatrixColliderSpyro = glm::scale(modelMatrixColliderSpyro, glm::vec3(0.015, 0.015, 0.015));
 		modelMatrixColliderSpyro = glm::translate(modelMatrixColliderSpyro, spyroModelAnimate.getObb().c);
@@ -1606,27 +1686,61 @@ void applicationLoop() {
 		addOrUpdateColliders(collidersOBB, "spyro", spyroCollider, modelMatrixSpyro);
 
 		// Collider de Enemigo
-		AbstractModel::OBB enemigoCollider;
-		glm::mat4 modelMatrixColliderEnemigo = glm::mat4(modelMatrixEnemigo);
-		enemigoCollider.u = glm::quat_cast(modelMatrixColliderEnemigo);
-		modelMatrixColliderEnemigo = glm::scale(modelMatrixColliderEnemigo, glm::vec3(0.005, 0.01, 0.01));
-		modelMatrixColliderEnemigo = glm::translate(modelMatrixColliderEnemigo, enemigoModelAnimate.getObb().c);
-		enemigoCollider.e = enemigoModelAnimate.getObb().e * glm::vec3(0.005, 0.01, 0.01);
-		enemigoCollider.c = glm::vec3(modelMatrixColliderEnemigo[3]);
-		addOrUpdateColliders(collidersOBB, "enemigo", enemigoCollider, modelMatrixEnemigo);
+		for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+			AbstractModel::OBB enemigoCollider;
+			glm::mat4 modelMatrixColliderEnemigo = glm::mat4(modelMatrixEnemigoArray[i]);
+			enemigoCollider.u = glm::quat_cast(modelMatrixColliderEnemigo);
+			modelMatrixColliderEnemigo = glm::scale(modelMatrixColliderEnemigo, glm::vec3(0.005, 0.01, 0.01));
+			modelMatrixColliderEnemigo = glm::translate(modelMatrixColliderEnemigo, enemigoModelAnimate.getObb().c);
+			enemigoCollider.e = enemigoModelAnimate.getObb().e * glm::vec3(0.005, 0.01, 0.01);
+			enemigoCollider.c = glm::vec3(modelMatrixColliderEnemigo[3]);
+			addOrUpdateColliders(collidersOBB, "enemigo-" + std::to_string(i), enemigoCollider, modelMatrixColliderEnemigo);
+		}
 
-		// Collider diamante
-		AbstractModel::SBB diamanteCollider;
-		glm::mat4 modelMatrixColliderDiamante = glm::mat4(modelMatrixDiamante);
-		modelMatrixColliderDiamante = glm::scale(modelMatrixColliderDiamante, glm::vec3(0.01, 0.01, 0.01));
-		modelMatrixColliderDiamante = glm::translate(modelMatrixColliderDiamante, diamanteModelAnimate.getSbb().c);
-		diamanteCollider.c = modelMatrixColliderDiamante[3];
-		diamanteCollider.ratio = diamanteModelAnimate.getSbb().ratio * 0.01;
-		addOrUpdateColliders(collidersSBB, "diamante", diamanteCollider, modelMatrixDiamante);
+		// Collider de Cofres
+		for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+			glm::mat4 modelMatrixColliderCofre = glm::mat4(modelMatrixCofresArray[i]);
+			AbstractModel::OBB cofreCollider;
+			// Set the orientation of collider before doing the scale
+			cofreCollider.u = glm::quat_cast(modelMatrixColliderCofre);
+			modelMatrixColliderCofre = glm::scale(modelMatrixColliderCofre, glm::vec3(0.01, 0.01, 0.01));
+			modelMatrixColliderCofre = glm::translate(modelMatrixColliderCofre, modelCofre.getObb().c);
+			cofreCollider.c = glm::vec3(modelMatrixColliderCofre[3]);
+			cofreCollider.e = modelCofre.getObb().e * glm::vec3(0.01, 0.01, 0.01);
+			addOrUpdateColliders(collidersOBB, "cofre-" + std::to_string(i), cofreCollider, modelMatrixColliderCofre);
+		}
 
+		// Collider de Diamantes
+		for (int i = 0; i < DiamantesInitialPosition.size(); i++) {
+			AbstractModel::SBB diamanteCollider;
+			glm::mat4 modelMatrixColliderDiamante = glm::mat4(modelMatrixDiamantesArray[i]);
+			modelMatrixColliderDiamante = glm::scale(modelMatrixColliderDiamante, glm::vec3(0.008, 0.008, 0.008));
+			modelMatrixColliderDiamante = glm::translate(modelMatrixColliderDiamante, diamanteModelAnimate.getSbb().c);
+			diamanteCollider.c = modelMatrixColliderDiamante[3];
+			diamanteCollider.ratio = diamanteModelAnimate.getSbb().ratio * 0.008;
+			addOrUpdateColliders(collidersSBB, "diamante-" + std::to_string(i), diamanteCollider, modelMatrixColliderDiamante);
+		}
+
+		// Collider de Tree
+		for (int i = 0; i < TreesInitialPosition.size(); i++) {
+			AbstractModel::OBB treeCollider;
+			glm::mat4 modelMatrixColliderTree = glm::mat4(modelMatrixTreesArray[i]);
+			treeCollider.u = glm::quat_cast(modelMatrixColliderTree);
+			glm::vec3 treeHeight;
+			treeHeight.x = TreesInitialHeight[i] / 100.0f;
+			treeHeight.y = TreesInitialHeight[i] / 10.0f;
+			treeHeight.z = TreesInitialHeight[i] / 100.0f;
+			modelMatrixColliderTree = glm::scale(modelMatrixColliderTree, treeHeight);
+			modelMatrixColliderTree = glm::translate(modelMatrixColliderTree, modelTree.getObb().c);
+			treeCollider.e = modelTree.getObb().e * treeHeight;
+			treeCollider.c = glm::vec3(modelMatrixColliderTree[3]);
+			addOrUpdateColliders(collidersOBB, "tree-" + std::to_string(i), treeCollider, modelMatrixColliderTree);
+		}
+	
 		/*******************************************
 		 * Render de colliders
 		 *******************************************/
+		/*
 		for (std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
 				collidersOBB.begin(); it != collidersOBB.end(); it++) {
 			glm::mat4 matrixCollider = glm::mat4(1.0);
@@ -1647,10 +1761,12 @@ void applicationLoop() {
 			sphereCollider.enableWireMode();
 			sphereCollider.render(matrixCollider);
 		}
+		*/
 
 		/*******************************************
 		 * Test Colisions
 		 *******************************************/
+		 // Cajas vs Cajas
 		for (std::map<std::string,
 				std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
 				collidersOBB.begin(); it != collidersOBB.end(); it++) {
@@ -1663,12 +1779,14 @@ void applicationLoop() {
 								std::get<0>(jt->second))) {
 					std::cout << "Colision " << it->first << " with "
 							<< jt->first << std::endl;
-					isCollision = true;
+					isCollision = buscaColliderOBB(it->first, jt->first);
+					std::cout << "isCollision: " << isCollision << std::endl;
+					//isCollision = true;
 				}
 			}
 			addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
 		}
-
+		// Esferas vs Esferas
 		for (std::map<std::string,
 				std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
 				collidersSBB.begin(); it != collidersSBB.end(); it++) {
@@ -1686,7 +1804,7 @@ void applicationLoop() {
 			}
 			addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
 		}
-
+		// Cajas vs esferas
 		for (std::map<std::string,
 				std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
 				collidersSBB.begin(); it != collidersSBB.end(); it++) {
@@ -1699,7 +1817,8 @@ void applicationLoop() {
 								std::get<0>(jt->second))) {
 					std::cout << "Colision " << it->first << " with "
 							<< jt->first << std::endl;
-					isCollision = true;
+					isCollision = buscaColliderSBB(it->first);
+					//isCollision = true;
 					addOrUpdateCollisionDetection(collisionDetection, jt->first, isCollision);
 				}
 			}
@@ -1725,46 +1844,527 @@ void applicationLoop() {
 					addOrUpdateColliders(collidersSBB, jt->first);
 			}
 		}
+		/*******************************************
+		 * Prueba de colision de rayo
+		 *******************************************/
+		 // Rayo vs Esfera
+		for (std::map<std::string,
+			std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
+			collidersSBB.begin(); it != collidersSBB.end(); it++) {
+			float tray;
+			if (raySphereIntersect(ori, tar, rayDirection, std::get<0>(it->second), tray))
+				std::cout << "Colision " << it->first << " with " << "Ray" << std::endl;
+		}
 
+		// Rayo vs Caja
+		for (std::map<std::string,
+			std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
+			collidersOBB.begin(); it != collidersOBB.end(); it++) {
+			if (testIntersectRayOBB(ori, tar, rayDirection, std::get<0>(it->second))) {
+				std::cout << "Colision " << it->first << " with " << "Ray" << std::endl;
+				bool basura = buscaColliderOBB(it->first, "Ray");
+			}
+
+		}
 		// Constantes de animaciones
 		rotHelHelY += 0.5;
 		animationIndex = 1;
 
+		// Contador explosion
+		if (enableExplosion) {
+			if (contadorExplosion < 1.5f)
+				contadorExplosion += 1.0f * deltaTime;
+			else
+				enableExplosion = false;
+		}
+
 
 		//Movimiento Enemgigo
-		
-		vectorDirectorEnemigo = glm::vec3(modelMatrixSpyro[3][0] - modelMatrixEnemigo[3][0],
-										  modelMatrixSpyro[3][1] - modelMatrixEnemigo[3][1],
-										  modelMatrixSpyro[3][2] - modelMatrixEnemigo[3][2]);
-		float magnitud = sqrtf( vectorDirectorEnemigo.x * vectorDirectorEnemigo.x +
-								vectorDirectorEnemigo.y * vectorDirectorEnemigo.y +
-								vectorDirectorEnemigo.z * vectorDirectorEnemigo.z);
-		
-		if (magnitud <= 10.0f) {
-			//glm::normalize(vectorDirectorEnemigo);
-			vectorDirectorEnemigo = glm::vec3(vectorDirectorEnemigo.x / magnitud,
-				vectorDirectorEnemigo.y / magnitud,
-				vectorDirectorEnemigo.z / magnitud);
-			/*
-			std::cout << "Vector Director Enemigo: \n  " <<
-						 "En X: " << vectorDirectorEnemigo.x << "\n " <<
-						 "En Y: " << vectorDirectorEnemigo.y << "\n " <<
-						 "En Z: " << vectorDirectorEnemigo.z << "\n " << std::endl;*/
-			modelMatrixEnemigo = glm::translate(modelMatrixEnemigo, glm::vec3(vectorDirectorEnemigo.x * 0.07, 0.0, vectorDirectorEnemigo.z * 0.07));
-			//modelMatrixEnemigo = glm::rotate(modelMatrixEnemigo, 0.0f, glm::vec3(0.0, 1.0, 0.0));
-			enemigo_anim_index = 1;
+		for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+			vectorDirectorEnemigo = glm::vec3(	modelMatrixSpyro[3][0] - modelMatrixEnemigoArray[i][3][0],
+												modelMatrixSpyro[3][1] - modelMatrixEnemigoArray[i][3][1],
+												modelMatrixSpyro[3][2] - modelMatrixEnemigoArray[i][3][2]);
+			float magnitud = sqrtf(vectorDirectorEnemigo.x * vectorDirectorEnemigo.x +
+				vectorDirectorEnemigo.y * vectorDirectorEnemigo.y +
+				vectorDirectorEnemigo.z * vectorDirectorEnemigo.z);
+
+			if (enemigo_isVivo_Array[i]) {
+				if (magnitud <= 20.0f) {
+					//glm::normalize(vectorDirectorEnemigo);
+					vectorDirectorEnemigo = glm::vec3(vectorDirectorEnemigo.x / magnitud,
+						vectorDirectorEnemigo.y / magnitud,
+						vectorDirectorEnemigo.z / magnitud);
+					modelMatrixEnemigoArray[i] = glm::translate(modelMatrixEnemigoArray[i], glm::vec3(vectorDirectorEnemigo.x * 0.1, 0.0, vectorDirectorEnemigo.z * 0.1));
+					enemigo_anim_index_Array[i] = 1;
+				}
+				else
+					enemigo_anim_index_Array[i] = 2;
+			}
+			
 		}
-		else
-			enemigo_anim_index = 2;
 
 		/*******************************************
 		 * State machines
 		 *******************************************/
+		//glfwSwapBuffers(window);
 
-		
-
+		modelText->render("Enemigos: " + std::to_string(enemigosCount) + " / " + std::to_string(enemigo_isVivo_Array.size()), -0.9, 0.9);
+		modelText->render("Gemas recogidas: " + std::to_string(diamantesCount) + " / " + std::to_string(diamantesTotal), -0.3, 0.9);
+		modelText->render("Vida: " + std::to_string(int(spyroLifeCount)) + "%", 0.3, 0.9);
+		if (!spyroAlive)
+			modelText->render("Game Over", 0.0, -0.7);
 		glfwSwapBuffers(window);
+
+		/****************************+
+		 * Open AL sound data
+		 */
+
+		source1Pos[0] = modelMatrixSpyro[3].x;
+		source1Pos[1] = modelMatrixSpyro[3].y;
+		source1Pos[2] = modelMatrixSpyro[3].z;
+		alSourcefv(source[1], AL_POSITION, source1Pos);
+		if(isShot)
+			alSourcef(source[1], AL_GAIN, 3.0f);
+		else
+			alSourcef(source[1], AL_GAIN, 0.0f);
+
+		for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+			ALfloat sourceEnemigoPos[] = { 0.0, 0.0, 0.0 };
+			sourceEnemigoPos[0] = modelMatrixEnemigoArray[i][3].x;
+			sourceEnemigoPos[1] = modelMatrixEnemigoArray[i][3].y;
+			sourceEnemigoPos[2] = modelMatrixEnemigoArray[i][3].z;
+			int indice = i + 3;
+			alSourcefv(source[indice], AL_POSITION, sourceEnemigoPos);
+		}
+
+		/*
+		source3Pos[0] = modelMatrixEnemigoArray[0][3].x;
+		source3Pos[1] = modelMatrixEnemigoArray[0][3].y;
+		source3Pos[2] = modelMatrixEnemigoArray[0][3].z;
+		alSourcefv(source[3], AL_POSITION, source3Pos);*/
+
+		// Listener for the Thris person camera
+		listenerPos[0] = modelMatrixSpyro[3].x;
+		listenerPos[1] = modelMatrixSpyro[3].y;
+		listenerPos[2] = modelMatrixSpyro[3].z;
+		alListenerfv(AL_POSITION, listenerPos);
+
+		glm::vec3 upModel = glm::normalize(modelMatrixSpyro[1]);
+		glm::vec3 frontModel = glm::normalize(modelMatrixSpyro[2]);
+
+		listenerOri[0] = frontModel.x;
+		listenerOri[1] = frontModel.y;
+		listenerOri[2] = frontModel.z;
+		listenerOri[3] = upModel.x;
+		listenerOri[4] = upModel.y;
+		listenerOri[5] = upModel.z;
+
+		// Listener for the First person camera
+		/*listenerPos[0] = camera->getPosition().x;
+		listenerPos[1] = camera->getPosition().y;
+		listenerPos[2] = camera->getPosition().z;
+		alListenerfv(AL_POSITION, listenerPos);
+		listenerOri[0] = camera->getFront().x;
+		listenerOri[1] = camera->getFront().y;
+		listenerOri[2] = camera->getFront().z;
+		listenerOri[3] = camera->getUp().x;
+		listenerOri[4] = camera->getUp().y;
+		listenerOri[5] = camera->getUp().z;*/
+		alListenerfv(AL_ORIENTATION, listenerOri);
+
+		for (unsigned int i = 0; i < sourcesPlay.size(); i++) {
+			if (sourcesPlay[i]) {
+				sourcesPlay[i] = false;
+				alSourcePlay(source[i]);
+			}
+		}
 	}
+}
+
+void prepareScene() { // Importante agregar los modelos que se añaden a la escena
+
+	skyboxSphere.setShader(&shaderSkybox);
+
+	terrain.setShader(&shaderTerrain);
+
+	//Lamp models
+	modelLamp1.setShader(&shaderMulLighting);
+	modelLamp2.setShader(&shaderMulLighting);
+	modelLampPost2.setShader(&shaderMulLighting);
+
+	//Grass
+	modelGrass_1.setShader(&shaderMulLighting);
+	modelGrass_2.setShader(&shaderMulLighting);
+	modelGrass_3.setShader(&shaderMulLighting);
+
+	//Spyro
+	spyroModelAnimate.setShader(&shaderMulLighting);
+
+	//Enemigo
+	enemigoModelAnimate.setShader(&shaderMulLighting);
+}
+
+void prepareDepthScene() {
+
+	skyboxSphere.setShader(&shaderDepth);
+
+	terrain.setShader(&shaderDepth);
+		
+	//Lamp models
+	modelLamp1.setShader(&shaderDepth);
+	modelLamp2.setShader(&shaderDepth);
+	modelLampPost2.setShader(&shaderDepth);
+
+	//Grass
+	modelGrass_1.setShader(&shaderDepth);
+	modelGrass_2.setShader(&shaderDepth);
+	modelGrass_3.setShader(&shaderDepth);
+
+	//Spyro
+	spyroModelAnimate.setShader(&shaderDepth);
+
+	//Enemigo
+	enemigoModelAnimate.setShader(&shaderDepth);
+}
+
+void renderScene(bool renderParticles) { // Render de la Escena
+	/*******************************************
+		 * Terrain Cesped
+		 *******************************************/
+	glm::mat4 modelCesped = glm::mat4(1.0);
+	modelCesped = glm::translate(modelCesped, glm::vec3(0.0, 0.0, 0.0));
+	modelCesped = glm::scale(modelCesped, glm::vec3(200.0, 0.001, 200.0));
+	// Se activa la textura del background
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, textureTerrainBackgroundID);
+	shaderTerrain.setInt("backgroundTexture", 0);
+	// Se activa la textura de tierra
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, textureTerrainRID);
+	shaderTerrain.setInt("rTexture", 1);
+	// Se activa la textura de hierba
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, textureTerrainGID);
+	shaderTerrain.setInt("gTexture", 2);
+	// Se activa la textura del camino
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, textureTerrainBID);
+	shaderTerrain.setInt("bTexture", 3);
+	// Se activa la textura del blend map
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, textureTerrainBlendMapID);
+	shaderTerrain.setInt("blendMapTexture", 4);
+	shaderTerrain.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(40, 40)));
+	terrain.render();
+	shaderTerrain.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	/*******************************************
+	 * Custom objects obj
+	 *******************************************/
+	// Forze to enable the unit texture to 0 always ----------------- IMPORTANT
+	glActiveTexture(GL_TEXTURE0);
+	/*
+	// Render the lamps
+	for (int i = 0; i < lamp1Position.size(); i++) {
+		lamp1Position[i].y = terrain.getHeightTerrain(lamp1Position[i].x, lamp1Position[i].z);
+		modelLamp1.setPosition(lamp1Position[i]);
+		modelLamp1.setScale(glm::vec3(0.5, 0.5, 0.5));
+		modelLamp1.setOrientation(glm::vec3(0, lamp1Orientation[i], 0));
+		modelLamp1.render();
+	}*/
+
+	// Grass
+	for (int i = 0; i < grassInitialPosition.size(); i++) {
+		glDisable(GL_CULL_FACE);
+		glm::vec3 grassPosition = grassInitialPosition[i];
+		grassPosition.y = terrain.getHeightTerrain(grassPosition.x, grassPosition.z);
+		modelGrass_1.setPosition(grassPosition);
+		modelGrass_1.render();
+		modelGrass_2.setPosition(grassPosition);
+		modelGrass_2.render();
+		modelGrass_3.setPosition(grassPosition);
+		modelGrass_3.render();
+		glEnable(GL_CULL_FACE);
+	}
+	// Cofres
+	for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+		if (cofres_isVivo_Array[i]) {
+			modelMatrixCofresArray[i][3][1] = terrain.getHeightTerrain(modelMatrixCofresArray[i][3][0], modelMatrixCofresArray[i][3][2]);
+			glm::mat4 modelMatrixCofreBody = glm::mat4(modelMatrixCofresArray[i]);
+			modelMatrixCofreBody = glm::scale(modelMatrixCofreBody, glm::vec3(0.01, 0.01, 0.01));
+			modelCofre.render(modelMatrixCofreBody);
+		}
+	}
+
+	// Diamantes
+	for (int i = 0; i < modelMatrixDiamantesArray.size(); i++) {
+		if (diamantes_isVivo_Array[i]) {
+			modelMatrixDiamantesArray[i][3][1] = terrain.getHeightTerrain(modelMatrixDiamantesArray[i][3][0], modelMatrixDiamantesArray[i][3][2]);
+			glm::mat4 modelMatrixDiamanteBody = glm::mat4(modelMatrixDiamantesArray[i]);
+			modelMatrixDiamanteBody = glm::scale(modelMatrixDiamanteBody, glm::vec3(0.008, 0.008, 0.008));
+			diamanteModelAnimate.setAnimationIndex(0);
+			diamanteModelAnimate.render(modelMatrixDiamanteBody);
+		}
+	}
+	glActiveTexture(GL_TEXTURE0);	
+
+	// Tree
+	for (int i = 0; i < modelMatrixTreesArray.size(); i++) {
+		glm::vec3 treeHeight(TreesInitialHeight[i] / 10.0f);
+
+		glDisable(GL_CULL_FACE);
+		modelMatrixTreesArray[i][3][1] = terrain.getHeightTerrain(modelMatrixTreesArray[i][3][0], modelMatrixTreesArray[i][3][2]);
+		glm::mat4 modelMatrixTreeBody = glm::mat4(modelMatrixTreesArray[i]);
+		modelMatrixTreeBody = glm::scale(modelMatrixTreeBody, treeHeight);
+		modelTree.render(modelMatrixTreeBody);
+		glEnable(GL_CULL_FACE);
+	}
+	
+
+	/*******************************************
+	 * Custom Anim objects obj
+	 *******************************************/
+
+	 //Spyro
+	glDisable(GL_CULL_FACE);
+	modelMatrixSpyro[3][1] = -gravedad * tmv * tmv + 5.5 * tmv + terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+	tmv = currTime - startTimeJump;
+	if (modelMatrixSpyro[3][1] < terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2])) {
+		isJump = false;
+		modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+	}
+	//modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+	glm::mat4 modelMatrixSpyroBody = glm::mat4(modelMatrixSpyro);
+	modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
+	spyroModelAnimate.setAnimationIndex(animationIndex);
+	spyroModelAnimate.render(modelMatrixSpyroBody);
+	glEnable(GL_CULL_FACE);
+
+	// Enemigo
+
+	for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+		glm::vec3 enemigoDirection = glm::normalize(glm::vec3(modelMatrixSpyro[3][0] - modelMatrixEnemigoArray[i][3][0],
+			modelMatrixSpyro[3][1] - modelMatrixEnemigoArray[i][3][1],
+			modelMatrixSpyro[3][2] - modelMatrixEnemigoArray[i][3][2]));
+		glm::vec3 enemigoUp = glm::vec3(0.0, 1.0, 0.0);
+		glm::vec3 enemigoRight = glm::normalize(glm::cross(enemigoUp, enemigoDirection));
+		glm::vec3 enemigoPos = glm::vec3(modelMatrixEnemigoArray[i][3][0], modelMatrixEnemigoArray[i][3][1], modelMatrixEnemigoArray[i][3][2]);
+
+		modelMatrixEnemigoArray[i][3][1] = terrain.getHeightTerrain(modelMatrixEnemigoArray[i][3][0], modelMatrixEnemigoArray[i][3][2]);
+		glm::mat4 modelMatrixEnemigoBody = glm::mat4(modelMatrixEnemigoArray[i]);
+
+		modelMatrixEnemigoBody[0][0] = enemigoRight.x;		modelMatrixEnemigoBody[0][1] = enemigoRight.y;		modelMatrixEnemigoBody[0][2] = enemigoRight.z;
+		modelMatrixEnemigoBody[1][0] = enemigoUp.x;			modelMatrixEnemigoBody[1][1] = enemigoUp.y;			modelMatrixEnemigoBody[1][2] = enemigoUp.z;
+		modelMatrixEnemigoBody[2][0] = enemigoDirection.x;	modelMatrixEnemigoBody[2][1] = enemigoDirection.y;	modelMatrixEnemigoBody[2][2] = enemigoDirection.z;
+
+		modelMatrixEnemigoBody = glm::scale(modelMatrixEnemigoBody, glm::vec3(0.01, 0.01, 0.01));
+		enemigoModelAnimate.setAnimationIndex(enemigo_anim_index_Array[i]);
+		enemigoModelAnimate.render(modelMatrixEnemigoBody);
+	}
+
+	/**********
+	 * Sorter with alpha objects
+	 */
+	std::map<float, std::pair<std::string, glm::vec3>> blendingSorted;
+	std::map<std::string, glm::vec3>::iterator itblend;
+	for (itblend = blendingUnsorted.begin(); itblend != blendingUnsorted.end(); itblend++) {
+		float distanceFromView = glm::length(camera->getPosition() - itblend->second);
+		blendingSorted[distanceFromView] = std::make_pair(itblend->first, itblend->second);
+	}
+
+	/**********
+	 * Render de las transparencias
+	 */
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_CULL_FACE);
+	for (std::map<float, std::pair<std::string, glm::vec3> >::reverse_iterator it = blendingSorted.rbegin(); it != blendingSorted.rend(); it++) {
+		if (it->second.first.compare("explosion") == 0 && enableExplosion) {
+			/**********
+			 * Init Render particles systems
+			 */
+			glm::mat4 modelMatrixParticlesExplosion = modelMatrixActiveExplosion;
+			//modelMatrixParticlesExplosion = glm::translate(modelMatrixParticlesExplosion, it->second.second);
+			modelMatrixParticlesExplosion[3][1] = terrain.getHeightTerrain(modelMatrixParticlesExplosion[3][0], modelMatrixParticlesExplosion[3][2]);
+			modelMatrixParticlesExplosion = glm::scale(modelMatrixParticlesExplosion, glm::vec3(3.0, 3.0, 3.0));
+			currTimeParticlesAnimation = TimeManager::Instance().GetTime();
+			if (currTimeParticlesAnimation - lastTimeParticlesAnimation > 10.0)
+				lastTimeParticlesAnimation = currTimeParticlesAnimation;
+			//glDisable(GL_DEPTH_TEST);
+			glDepthMask(GL_FALSE);
+			// Set the point size
+			glPointSize(10.0f);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, textureParticleExplosionID);
+			shaderParticlesExplosion.turnOn();
+			shaderParticlesExplosion.setFloat("Time", float(currTimeParticlesAnimation - lastTimeParticlesAnimation));
+			shaderParticlesExplosion.setFloat("ParticleLifetime", 1.5f);
+			shaderParticlesExplosion.setInt("ParticleTex", 0);
+			shaderParticlesExplosion.setVectorFloat3("Gravity", glm::value_ptr(glm::vec3(0.0f, -0.3f, 0.0f)));
+			shaderParticlesExplosion.setMatrix4("model", 1, false, glm::value_ptr(modelMatrixParticlesExplosion));
+			glBindVertexArray(VAOParticles);
+			glDrawArrays(GL_POINTS, 0, nParticles);
+			glDepthMask(GL_TRUE);
+			//glEnable(GL_DEPTH_TEST);
+			shaderParticlesExplosion.turnOff();
+			/**********
+			 * End Render particles systems
+			 */
+		}
+		else if (it->second.first.compare("fire") == 0) {
+			/**********
+			 * Init Render particles systems
+			 */
+			lastTimeParticlesAnimationFire = currTimeParticlesAnimationFire;
+			currTimeParticlesAnimationFire = TimeManager::Instance().GetTime();
+
+			shaderParticlesFire.setInt("Pass", 1);
+			shaderParticlesFire.setFloat("Time", currTimeParticlesAnimationFire);
+			shaderParticlesFire.setFloat("DeltaT", currTimeParticlesAnimationFire - lastTimeParticlesAnimationFire);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_1D, texId);
+			glEnable(GL_RASTERIZER_DISCARD);
+			glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, feedback[drawBuf]);
+			glBeginTransformFeedback(GL_POINTS);
+			glBindVertexArray(particleArray[1 - drawBuf]);
+			glVertexAttribDivisor(0, 0);
+			glVertexAttribDivisor(1, 0);
+			glVertexAttribDivisor(2, 0);
+			glDrawArrays(GL_POINTS, 0, nParticlesFire);
+			glEndTransformFeedback();
+			glDisable(GL_RASTERIZER_DISCARD);
+
+			glm::mat4 modelFireParticles = glm::mat4(modelMatrixSpyro);
+			modelFireParticles = glm::translate(modelFireParticles, glm::vec3(0.0, 1.0, 0.0));
+			glm::vec3 rayDirection = glm::normalize(glm::vec3(modelFireParticles[2]));
+			glm::vec3 ori = glm::vec3(modelFireParticles[3]);
+			glm::vec3 tar = ori + 5.0f * rayDirection;
+			glm::vec3 tarm = ori + 1.0f * rayDirection;
+			modelFireParticles[3] = glm::vec4(tarm, 1.0f);
+			modelFireParticles = glm::rotate(modelFireParticles, glm::radians(90.0f), glm::vec3(1.0, 0.0, 0.0));
+			
+			tmv_shot = currTime - startTimeShot;
+			if (tmv_shot >= 1.0f) {
+				isShot = false;
+				//modelFireParticles = glm::scale(modelFireParticles, glm::vec3(0.0, 0.0, 0.0));
+				shaderParticlesFire.turnOff();
+			}
+			else if (isShot)
+			{
+				modelFireParticles = glm::scale(modelFireParticles, glm::vec3(0.1, 5.0f * tmv_shot, 0.1));
+				shaderParticlesFire.setInt("Pass", 2);
+				shaderParticlesFire.setMatrix4("model", 1, false, glm::value_ptr(modelFireParticles));
+				shaderParticlesFire.setVectorFloat3("colorHumo", glm::value_ptr(glm::vec3(0.0, 0.0, 0.0)));
+
+				shaderParticlesFire.turnOn();
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, textureParticleFireID);
+				glDepthMask(GL_FALSE);
+				glBindVertexArray(particleArray[drawBuf]);
+				glVertexAttribDivisor(0, 1);
+				glVertexAttribDivisor(1, 1);
+				glVertexAttribDivisor(2, 1);
+				glDrawArraysInstanced(GL_TRIANGLES, 0, 6, nParticlesFire);
+				glBindVertexArray(0);
+				glDepthMask(GL_TRUE);
+				drawBuf = 1 - drawBuf;
+				shaderParticlesFire.turnOff();
+			}
+				
+
+			
+
+			/**********
+			 * End Render particles systems
+			 */
+		}
+
+	}
+	glEnable(GL_CULL_FACE);
+}
+bool buscaColliderSBB(std::string nombre) {
+	for (int i = 0; i < diamantes_isVivo_Array.size(); i++) {
+		std::string nombreIterador = "diamante-" + std::to_string(i);
+		if (nombreIterador == nombre) {
+			if (diamantes_isVivo_Array[i]) {
+				diamantes_isVivo_Array[i] = false;
+				diamantesCount += 2;
+			}
+			return false;
+		}
+	}
+	return true;
+}
+
+bool buscaColliderOBB(std::string nombre, std::string second_nombre) {
+	for (int i = 0; i < enemigo_isVivo_Array.size(); i++) {
+		std::string nombreIterador = "enemigo-" + std::to_string(i);
+		/*
+		if (isShot && nombreIterador == nombre) {
+			enemigo_isVivo_Array[i] = false;
+			enemigo_anim_index_Array[i] = 0;
+		}
+		if (!isRayo && nombreIterador == nombre) {
+			return false;
+		}
+		*/
+		if (nombreIterador == nombre | nombreIterador == second_nombre) {
+			if (isShot && enemigo_isVivo_Array[i]) {
+				enemigo_isVivo_Array[i] = false;
+				enemigo_anim_index_Array[i] = 0;
+				diamantesCount += 10;
+				enemigosCount += 1;
+				return false;
+			}
+			else if (!enemigo_isVivo_Array[i])
+				return false;
+			else if (enemigo_isVivo_Array[i]) {
+				if (spyroLifeCount >= 0) {
+					spyroLifeCount -= 0.1f;
+					return true;
+				}
+				else {
+					spyroAlive = false;
+					spyroLifeCount = 0.0f;
+				}
+			}
+		}
+	}
+	for (int i = 0; i < cofres_isVivo_Array.size(); i++) {
+		std::string nombreIterador = "cofre-" + std::to_string(i);
+		/*
+		if (isShot && nombreIterador == nombre) {
+			modelMatrixActiveExplosion[3][0] = CofresInitialPosition[i].x;
+			modelMatrixActiveExplosion[3][1] = CofresInitialPosition[i].y;
+			modelMatrixActiveExplosion[3][2] = CofresInitialPosition[i].z;
+			if (cofres_isVivo_Array[i] && !enableExplosion) {
+				enableExplosion = true;
+				contadorExplosion = 0.0f;
+			}
+			cofres_isVivo_Array[i] = false;
+			return false;
+		}
+		*/
+		if (nombreIterador == nombre | nombreIterador == second_nombre) {
+			if (isShot && cofres_isVivo_Array[i]) {
+				modelMatrixActiveExplosion[3][0] = CofresInitialPosition[i].x;
+				modelMatrixActiveExplosion[3][1] = CofresInitialPosition[i].y;
+				modelMatrixActiveExplosion[3][2] = CofresInitialPosition[i].z;
+				if (cofres_isVivo_Array[i] && !enableExplosion) {
+					enableExplosion = true;
+					contadorExplosion = 0.0f;
+				}
+				cofres_isVivo_Array[i] = false;
+				diamantesCount += 5;
+				return false;
+			}
+			else if (!cofres_isVivo_Array[i])
+				return false;
+		}
+	}
+	return true;
 }
 
 int main(int argc, char **argv) {
