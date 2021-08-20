@@ -263,6 +263,9 @@ bool enableCountSelected = true;
 //Variables para el movimiento del enemigo
 glm::vec3 vectorDirectorEnemigo;
 
+//Variables para el reinicio de spyro
+glm::vec3 vectorDirectorSpyro;
+
 // Variables to animations keyframes
 bool saveFrame = false, availableSave = true;
 std::ofstream myfile;
@@ -309,6 +312,16 @@ int enemigosCount = 0;
 // Life Spyro contador
 float spyroLifeCount = 100.0f;
 bool spyroAlive = true;
+bool gameOver = true;
+bool restarting = false;
+float restartingCount = 0.0f;
+bool ready2Play = true;
+
+//Run Variables
+bool isRun = false, isWalk = false;
+float SpyroSpeed = 0.08f;
+float SpyroWalkSpeed = 0.08f;
+float SpyroRunSpeed = 0.25f;
 
 // Jump Variables
 bool isJump = false;
@@ -336,24 +349,25 @@ GLuint depthMap, depthMapFBO;
  */
 
  // OpenAL Defines
-#define NUM_BUFFERS 4
-#define NUM_SOURCES 35
+#define NUM_BUFFERS 8
+#define NUM_SOURCES 46
 #define NUM_ENVIRONMENTS 1
 // Listener
 ALfloat listenerPos[] = { 0.0, 0.0, 4.0 };
 ALfloat listenerVel[] = { 0.0, 0.0, 0.0 };
 ALfloat listenerOri[] = { 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
 // Source 0
-ALfloat source0Pos[] = { -2.0, 0.0, 0.0 };
+ALfloat source0Pos[] = { 0.0, 0.0, 0.0 };
 ALfloat source0Vel[] = { 0.0, 0.0, 0.0 };
 // Source 1
-ALfloat source1Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source1Pos[] = { 0.0, 0.0, 0.0 };
 ALfloat source1Vel[] = { 0.0, 0.0, 0.0 };
-// Source 2
-ALfloat source2Pos[] = { 2.0, 0.0, 0.0 };
-ALfloat source2Vel[] = { 0.0, 0.0, 0.0 };
+// Source Ambient
+ALfloat sourceAmbientPos[] = { 0.0, 0.0, 0.0 };
+ALfloat sourceAmbientVel[] = { 0.0, 0.0, 0.0 };
 
 // Source Enemigo 
+ALfloat sourceCofreVel[] = { 0.0, 0.0, 0.0 };
 ALfloat sourceEnemigoVel[] = { 0.0, 0.0, 0.0 };
 
 // Buffers
@@ -367,8 +381,10 @@ ALvoid* data;
 int ch;
 ALboolean loop;
 std::vector<bool> sourcesPlay = { 
-	true, true, true, 
-	true, true, true, true,		true, true, true, true,
+	true, true, /* 0: billie 1: fire */
+	true,true,true,true, /* Cofres */
+	true,true,true,true,
+	true, true, true, true,		true, true, true, true, /* Enemigos */
 	true, true, true, true,		true, true, true, true,
 	true, true, true, true,		true, true, true, true,
 	true, true, true, true,		true, true, true, true
@@ -389,7 +405,9 @@ void prepareScene();
 void prepareDepthScene();
 void renderScene(bool renderParticles = true);
 bool buscaColliderOBB(std::string nombre, std::string second_nombre);
-bool buscaColliderSBB(std::string nombre);
+bool buscaColliderSBB(std::string nombre, std::string second_nombre);
+bool restartSpyroInitialPosition();
+void restartAllPositions();
 
 void initParticleBuffers() {
 	// Generate the buffers
@@ -1021,10 +1039,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// Config source 0
 	// Generate buffers, or else no sound will happen!
 	alGenBuffers(NUM_BUFFERS, buffer);
-	buffer[0] = alutCreateBufferFromFile("../sounds/fountain.wav");
+	buffer[0] = alutCreateBufferFromFile("../sounds/BillieVsZombies.wav");
 	buffer[1] = alutCreateBufferFromFile("../sounds/fire.wav");
-	buffer[2] = alutCreateBufferFromFile("../sounds/darth_vader.wav");
-	buffer[3] = alutCreateBufferFromFile("../sounds/zombie_groan.wav");
+	buffer[2] = alutCreateBufferFromFile("../sounds/Wind.wav");
+	buffer[3] = alutCreateBufferFromFile("../sounds/spyroWalk.wav");
+	buffer[4] = alutCreateBufferFromFile("../sounds/spyroRun.wav");
+	buffer[5] = alutCreateBufferFromFile("../sounds/AmbientSound.wav");
+	buffer[6] = alutCreateBufferFromFile("../sounds/Treasure.wav");
+	buffer[7] = alutCreateBufferFromFile("../sounds/zombie_groan.wav");
 	int errorAlut = alutGetError();
 	if (errorAlut != ALUT_ERROR_NO_ERROR) {
 		printf("- Error open files with alut %d !!\n", errorAlut);
@@ -1042,14 +1064,16 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	else {
 		printf("init - no errors after alGenSources\n");
 	}
+	// Billie Vs Zombies
 	alSourcef(source[0], AL_PITCH, 1.0f);
-	alSourcef(source[0], AL_GAIN, 3.0f);
+	alSourcef(source[0], AL_GAIN, 0.15f);
 	alSourcefv(source[0], AL_POSITION, source0Pos);
 	alSourcefv(source[0], AL_VELOCITY, source0Vel);
 	alSourcei(source[0], AL_BUFFER, buffer[0]);
 	alSourcei(source[0], AL_LOOPING, AL_TRUE);
 	alSourcef(source[0], AL_MAX_DISTANCE, 2000);
 
+	// Fire
 	source1Pos[0] = modelMatrixSpyro[3].x;
 	source1Pos[1] = modelMatrixSpyro[3].y;
 	source1Pos[2] = modelMatrixSpyro[3].z;
@@ -1061,27 +1085,72 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcei(source[1], AL_LOOPING, AL_TRUE);
 	alSourcef(source[1], AL_MAX_DISTANCE, 2000);
 
+	// Wind
 	alSourcef(source[2], AL_PITCH, 1.0f);
-	alSourcef(source[2], AL_GAIN, 0.3f);
-	alSourcefv(source[2], AL_POSITION, source2Pos);
-	alSourcefv(source[2], AL_VELOCITY, source2Vel);
+	alSourcef(source[2], AL_GAIN, 0.15f);
+	alSourcefv(source[2], AL_POSITION, source0Pos);
+	alSourcefv(source[2], AL_VELOCITY, source0Vel);
 	alSourcei(source[2], AL_BUFFER, buffer[2]);
 	alSourcei(source[2], AL_LOOPING, AL_TRUE);
-	alSourcef(source[2], AL_MAX_DISTANCE, 500);
+	alSourcef(source[2], AL_MAX_DISTANCE, 2000);
 
+	// Walk
+	alSourcef(source[3], AL_PITCH, 1.0f);
+	alSourcef(source[3], AL_GAIN, 0.15f);
+	alSourcefv(source[3], AL_POSITION, source0Pos);
+	alSourcefv(source[3], AL_VELOCITY, source0Vel);
+	alSourcei(source[3], AL_BUFFER, buffer[3]);
+	alSourcei(source[3], AL_LOOPING, AL_TRUE);
+	alSourcef(source[3], AL_MAX_DISTANCE, 2000);
+
+	// Run
+	alSourcef(source[4], AL_PITCH, 1.0f);
+	alSourcef(source[4], AL_GAIN, 0.15f);
+	alSourcefv(source[4], AL_POSITION, source0Pos);
+	alSourcefv(source[4], AL_VELOCITY, source0Vel);
+	alSourcei(source[4], AL_BUFFER, buffer[4]);
+	alSourcei(source[4], AL_LOOPING, AL_TRUE);
+	alSourcef(source[4], AL_MAX_DISTANCE, 2000);
+
+	// Ambient
+	alSourcef(source[5], AL_PITCH, 1.0f);
+	alSourcef(source[5], AL_GAIN, 0.15f);
+	alSourcefv(source[5], AL_POSITION, source0Pos);
+	alSourcefv(source[5], AL_VELOCITY, source0Vel);
+	alSourcei(source[5], AL_BUFFER, buffer[5]);
+	alSourcei(source[5], AL_LOOPING, AL_TRUE);
+	alSourcef(source[5], AL_MAX_DISTANCE, 2000);
+
+	// Cofres
+	for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+		ALfloat sourceCofrePos[] = { 0.0, 0.0, 0.0 };
+		sourceCofrePos[0] = CofresInitialPosition[i][0];
+		sourceCofrePos[1] = CofresInitialPosition[i][1];
+		sourceCofrePos[2] = CofresInitialPosition[i][2];
+		int indice = i + 6;
+		alSourcef(source[indice], AL_PITCH, 1.0f);
+		alSourcef(source[indice], AL_GAIN, 0.5f);
+		alSourcefv(source[indice], AL_POSITION, sourceCofrePos);
+		alSourcefv(source[indice], AL_VELOCITY, sourceEnemigoVel);
+		alSourcei(source[indice], AL_BUFFER, buffer[6]);
+		alSourcei(source[indice], AL_LOOPING, AL_TRUE);
+		alSourcef(source[indice], AL_MAX_DISTANCE, 500);
+	}
+
+	// Enemigos
 	for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
 		ALfloat sourceEnemigoPos[] = { 0.0, 0.0, 0.0 };
-		sourceEnemigoPos[0] = modelMatrixEnemigoArray[i][3].x;
-		sourceEnemigoPos[1] = modelMatrixEnemigoArray[i][3].y;
-		sourceEnemigoPos[2] = modelMatrixEnemigoArray[i][3].z;
-		int indice = i + 3;
+		sourceEnemigoPos[0] = modelMatrixEnemigoArray[i][3][0];
+		sourceEnemigoPos[1] = modelMatrixEnemigoArray[i][3][1];
+		sourceEnemigoPos[2] = modelMatrixEnemigoArray[i][3][2];
+		int indice = i + 6 + modelMatrixCofresArray.size();
 		alSourcef(source[indice], AL_PITCH, 1.0f);
 		alSourcef(source[indice], AL_GAIN, 1.0f);
 		alSourcefv(source[indice], AL_POSITION, sourceEnemigoPos);
 		alSourcefv(source[indice], AL_VELOCITY, sourceEnemigoVel);
-		alSourcei(source[indice], AL_BUFFER, buffer[3]);
+		alSourcei(source[indice], AL_BUFFER, buffer[7]);
 		alSourcei(source[indice], AL_LOOPING, AL_TRUE);
-		alSourcef(source[indice], AL_MAX_DISTANCE, 100);
+		alSourcef(source[indice], AL_MAX_DISTANCE, 50);
 	}
 
 	// Se inicializa el modelo de texeles.
@@ -1220,9 +1289,10 @@ bool processInput(bool continueApplication) {
 
 	// Controlador xbox360 for pc
 	if (glfwJoystickPresent(GLFW_JOYSTICK_1) == GL_TRUE) {
-		std::cout << "Esta presente el joystick" << std::endl;
+		//std::cout << "Esta presente el joystick" << std::endl;
 		int axesCount, buttonCount;
 		const float* axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &axesCount);
+		/*
 		std::cout << "Número de ejes disponibles :=>" << axesCount << std::endl;
 		std::cout << "Left Stick X axis: " << axes[0] << std::endl;
 		std::cout << "Left Stick Y axis: " << axes[1] << std::endl;
@@ -1230,33 +1300,74 @@ bool processInput(bool continueApplication) {
 		std::cout << "Right Stick X axis: " << axes[3] << std::endl; // Right Stick Y axis
 		std::cout << "Right Stick Y axis: " << axes[4] << std::endl; // Left Trigger
 		std::cout << "Right Trigger/R2: " << axes[5] << std::endl;
+		*/
 
-		if (fabs(axes[1]) > 0.2 && spyroAlive) {
-			modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, axes[1] * 0.1));
+		if (fabs(axes[1]) > 0.2 && !gameOver) {
+			isWalk = true;
+			modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, axes[1] * SpyroSpeed));
 			animationIndex = 0;
-		}if (fabs(axes[0]) > 0.2 && spyroAlive) {
+		}
+		else
+			isWalk = false;
+		if (fabs(axes[0]) > 0.2 && !gameOver) {
 			modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-axes[0] * 3.0f), glm::vec3(0, 1, 0));
 			animationIndex = 0;
 		}
 
-		if (fabs(axes[2]) > 0.2 && spyroAlive) {
+		if (fabs(axes[2]) > 0.2) {
 			camera->mouseMoveCamera(axes[2] * 3.0f, 0.0, deltaTime);
-		}if (fabs(axes[3]) > 0.2 && spyroAlive) {
+		}if (fabs(axes[3]) > 0.2) {
 			camera->mouseMoveCamera(0.0, axes[3], deltaTime);
 		}
 
 		const unsigned char* buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttonCount);
-		std::cout << "Número de botones disponibles :=>" << buttonCount << std::endl;
-		if (!isShot && buttons[1] == GLFW_PRESS) { // Boton B
+		//std::cout << "Número de botones disponibles :=>" << buttonCount << std::endl;
+		if (!isShot && buttons[1] == GLFW_PRESS && !gameOver) { // Boton B
 			isShot = true;
 			startTimeShot = currTime;
 			tmv_shot = 0;
 		}
 
-		if (!isJump && buttons[0] == GLFW_PRESS) { // Boton A
+		if (!isJump && buttons[0] == GLFW_PRESS && !gameOver) { // Boton A
 			isJump = true;
 			startTimeJump = currTime;
 			tmv = 0;
+		}
+
+		if (!isRun && buttons[2] == GLFW_PRESS && !gameOver) { // Boton X
+			isRun = true;
+			SpyroSpeed = SpyroRunSpeed;
+		}
+		if (isRun && buttons[2] == GLFW_RELEASE && !gameOver) { // Boton X
+			isRun = false;
+			SpyroSpeed = SpyroWalkSpeed;
+		}
+		if (!restarting && buttons[3] == GLFW_PRESS && gameOver) { // Boton Y
+			restarting = true;
+		}
+		if (ready2Play && buttons[7] == GLFW_PRESS && gameOver) { // Boton Start
+			ready2Play = false;
+			gameOver = false;
+			restartingCount = 0.0;
+			restarting = false;
+		}
+		/*
+		4 LB
+		5 RB
+		6 Back
+		7 Start
+		8 L3
+		9 R3
+		10 Up
+		11 Right
+		12 Down
+		13 Left
+		*/
+		if (restarting) {
+			animationIndex = 2;
+			isJump = false;
+			isRun = false;
+			isShot = false;
 		}
 	}
 
@@ -1278,12 +1389,7 @@ bool processInput(bool continueApplication) {
 		modelSelected++;
 		if(modelSelected > 1)
 			modelSelected = 0;
-		/*
-		if(modelSelected == 1)
-			fileName = "../animaciones/animation_dart_joints.txt";
-		if (modelSelected == 2)
-			fileName = "../animaciones/animation_dart.txt";*/
-		std::cout << "modelSelected:" << modelSelected << std::endl;
+		//std::cout << "modelSelected:" << modelSelected << std::endl;
 	}
 	else if(glfwGetKey(window, GLFW_KEY_TAB) == GLFW_RELEASE)
 		enableCountSelected = true;
@@ -1308,32 +1414,51 @@ bool processInput(bool continueApplication) {
 		availableSave = true;
 
 	// Spyro animate model movements
-	if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && spyroAlive) {
+	if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && !gameOver) {
 		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(1.0f), glm::vec3(0, 1, 0));
 		animationIndex = 0;
 	}
-	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && spyroAlive) {
+	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && !gameOver) {
 		modelMatrixSpyro = glm::rotate(modelMatrixSpyro, glm::radians(-1.0f), glm::vec3(0, 1, 0));
 		animationIndex = 0;
-	}if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && spyroAlive) {
-		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, 0.08));
+	}if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && !gameOver) {
+		isWalk = true;
+		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, SpyroSpeed));
 		animationIndex = 0;
 	}
-	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && spyroAlive) {
-		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, -0.08));
+	else if (modelSelected == 0 && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !gameOver) {
+		isWalk = true;
+		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0, 0, -SpyroSpeed));
 		animationIndex = 0;
 	}
-	bool keySpaceStatus = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
-	if (!isJump && keySpaceStatus && spyroAlive) {
+	else if (!isJump && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !gameOver) {
 		isJump = true;
 		tmv = 0;
 		startTimeJump = currTime;
 	}
-	if (!isShot && glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS && spyroAlive) { // Boton B
+	else if (!isShot && glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS && !gameOver) { // Boton B
 		isShot = true;
 		startTimeShot = currTime;
 		tmv_shot = 0;
 	}
+	else if (!isRun && glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !gameOver) {
+		isRun = true;
+		SpyroSpeed = SpyroRunSpeed;
+	}
+	else if (!isRun && glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE && !gameOver) {
+		isRun = false;
+		SpyroSpeed = SpyroWalkSpeed;
+	}
+	else if (!restarting && glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS && gameOver) {
+		restarting = true;
+	}
+	else if (ready2Play && glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS && gameOver) {
+		ready2Play = false;
+		gameOver = false;
+		restartingCount = 0.0;
+		restarting = false;
+	}
+
 
 	glfwPollEvents();
 	return continueApplication;
@@ -1362,6 +1487,8 @@ void applicationLoop() {
 	for (int i = 0; i < modelMatrixTreesArray.size(); i++) {
 		modelMatrixTreesArray[i] = glm::translate(modelMatrixTreesArray[i], TreesInitialPosition[i]);
 	}
+
+	restartAllPositions();
 
 	lastTime = TimeManager::Instance().GetTime();
 
@@ -1817,7 +1944,7 @@ void applicationLoop() {
 								std::get<0>(jt->second))) {
 					std::cout << "Colision " << it->first << " with "
 							<< jt->first << std::endl;
-					isCollision = buscaColliderSBB(it->first);
+					isCollision = buscaColliderSBB(it->first, jt->first);
 					//isCollision = true;
 					addOrUpdateCollisionDetection(collisionDetection, jt->first, isCollision);
 				}
@@ -1835,7 +1962,7 @@ void applicationLoop() {
 				if (!colIt->second)
 					addOrUpdateColliders(collidersOBB, it->first);
 				else {
-					if (it->first.compare("spyro") == 0)
+					if (it->first.compare("spyro") == 0 && !restarting)
 						modelMatrixSpyro = std::get<1>(it->second);
 				}
 			}
@@ -1888,7 +2015,7 @@ void applicationLoop() {
 				vectorDirectorEnemigo.y * vectorDirectorEnemigo.y +
 				vectorDirectorEnemigo.z * vectorDirectorEnemigo.z);
 
-			if (enemigo_isVivo_Array[i]) {
+			if (enemigo_isVivo_Array[i] && !gameOver) {
 				if (magnitud <= 20.0f) {
 					//glm::normalize(vectorDirectorEnemigo);
 					vectorDirectorEnemigo = glm::vec3(vectorDirectorEnemigo.x / magnitud,
@@ -1907,41 +2034,113 @@ void applicationLoop() {
 		 * State machines
 		 *******************************************/
 		//glfwSwapBuffers(window);
+		if (ready2Play) {
+			modelText->render("Spyro vs Zombies", -0.1, 0.9);
+			modelText->render("Pusla N / Start para Empezar", -0.2, -0.8);
+		}
+		else if(!restarting){
+			modelText->render("Enemigos: " + std::to_string(enemigosCount) + " / " + std::to_string(enemigo_isVivo_Array.size()), -0.9, 0.9);
+			modelText->render("Gemas recogidas: " + std::to_string(diamantesCount) + " / " + std::to_string(diamantesTotal), -0.3, 0.9);
+			modelText->render("Vida: " + std::to_string(int(spyroLifeCount)) + "%", 0.3, 0.9);
+		}
+		else
+			modelText->render("Cargando una nueva aventura", -0.2, 0.9);
 
-		modelText->render("Enemigos: " + std::to_string(enemigosCount) + " / " + std::to_string(enemigo_isVivo_Array.size()), -0.9, 0.9);
-		modelText->render("Gemas recogidas: " + std::to_string(diamantesCount) + " / " + std::to_string(diamantesTotal), -0.3, 0.9);
-		modelText->render("Vida: " + std::to_string(int(spyroLifeCount)) + "%", 0.3, 0.9);
-		if (!spyroAlive)
-			modelText->render("Game Over", 0.0, -0.7);
+		
+		if (diamantesCount == diamantesTotal) {
+			vectorDirectorSpyro = glm::vec3(modelMatrixSpyro[3][0], 30.0f - modelMatrixSpyro[3][1], modelMatrixSpyro[3][2]);
+			gameOver = true;
+		}
+		if (gameOver && !ready2Play) {
+			if (spyroAlive) {
+				animationIndex = 2;
+				restarting = restartSpyroInitialPosition();
+			}
+			else {
+				animationIndex = 4;
+				if (restarting) 
+					restarting = restartSpyroInitialPosition();
+				else
+					modelText->render("Pulsa Y para reiniciar", -0.1, -0.8);
+				for (int i = 0; i < enemigo_anim_index_Array.size(); i++)
+					enemigo_anim_index_Array[i] = 2;
+			}
+			if(!restarting)
+				modelText->render("Game Over", 0.0, -0.7);
+		}
+		
 		glfwSwapBuffers(window);
+
+		//restartSpyroInitialPosition();
 
 		/****************************+
 		 * Open AL sound data
 		 */
-
+		// Fuego
 		source1Pos[0] = modelMatrixSpyro[3].x;
 		source1Pos[1] = modelMatrixSpyro[3].y;
 		source1Pos[2] = modelMatrixSpyro[3].z;
 		alSourcefv(source[1], AL_POSITION, source1Pos);
 		if(isShot)
-			alSourcef(source[1], AL_GAIN, 3.0f);
+			alSourcef(source[1], AL_GAIN, 1.0f);
 		else
 			alSourcef(source[1], AL_GAIN, 0.0f);
 
+		//Walk
+		if (isWalk) {
+			alSourcef(source[3], AL_GAIN, 1.0f);
+			alSourcef(source[4], AL_GAIN, 0.0f);
+			alSourcef(source[2], AL_GAIN, 0.0f);
+		}
+		// Run
+		if (isRun){
+			alSourcef(source[3], AL_GAIN, 0.0f);
+			alSourcef(source[4], AL_GAIN, 1.0f);
+			alSourcef(source[2], AL_GAIN, 0.0f);
+		}
+		// Jump
+		if (isJump){
+			alSourcef(source[3], AL_GAIN, 0.0f);
+			alSourcef(source[4], AL_GAIN, 0.0f);
+			alSourcef(source[2], AL_GAIN, 1.0f);
+		}
+		if (!isWalk && !isRun && !isJump) {
+			alSourcef(source[3], AL_GAIN, 0.0f);
+			alSourcef(source[4], AL_GAIN, 0.0f);
+			alSourcef(source[2], AL_GAIN, 0.0f);
+		}
+			
+
+		//Diamantes
+		for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+			ALfloat sourceCofrePos[] = { 0.0, 0.0, 0.0 };
+			sourceCofrePos[0] = CofresInitialPosition[i][0];
+			sourceCofrePos[1] = CofresInitialPosition[i][1];
+			sourceCofrePos[2] = CofresInitialPosition[i][2];
+			int indice = i + 6;
+			if (cofres_isVivo_Array[i]) {
+				alSourcef(source[indice], AL_GAIN, 1.0f);
+			}
+			else {
+				alSourcef(source[indice], AL_GAIN, 0.0f);
+			}
+		}
+
+		// Enemigos
 		for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
 			ALfloat sourceEnemigoPos[] = { 0.0, 0.0, 0.0 };
 			sourceEnemigoPos[0] = modelMatrixEnemigoArray[i][3].x;
 			sourceEnemigoPos[1] = modelMatrixEnemigoArray[i][3].y;
 			sourceEnemigoPos[2] = modelMatrixEnemigoArray[i][3].z;
-			int indice = i + 3;
+			int indice = i + 6 + modelMatrixCofresArray.size();
 			alSourcefv(source[indice], AL_POSITION, sourceEnemigoPos);
+			if (enemigo_isVivo_Array[i]) {
+				alSourcef(source[indice], AL_GAIN, 1.0f);
+			}
+			else {
+				alSourcef(source[indice], AL_GAIN, 0.0f);
+			}
 		}
-
-		/*
-		source3Pos[0] = modelMatrixEnemigoArray[0][3].x;
-		source3Pos[1] = modelMatrixEnemigoArray[0][3].y;
-		source3Pos[2] = modelMatrixEnemigoArray[0][3].z;
-		alSourcefv(source[3], AL_POSITION, source3Pos);*/
 
 		// Listener for the Thris person camera
 		listenerPos[0] = modelMatrixSpyro[3].x;
@@ -2128,16 +2327,25 @@ void renderScene(bool renderParticles) { // Render de la Escena
 
 	 //Spyro
 	glDisable(GL_CULL_FACE);
-	modelMatrixSpyro[3][1] = -gravedad * tmv * tmv + 5.5 * tmv + terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
-	tmv = currTime - startTimeJump;
-	if (modelMatrixSpyro[3][1] < terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2])) {
-		isJump = false;
-		modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+	if (!gameOver) {
+		modelMatrixSpyro[3][1] = -gravedad * tmv * tmv + 5.5 * tmv + terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+		tmv = currTime - startTimeJump;
+		if (modelMatrixSpyro[3][1] < terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2])) {
+			isJump = false;
+			modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+		}
 	}
-	//modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+	else if(!spyroAlive && !restarting)
+		modelMatrixSpyro[3][1] = terrain.getHeightTerrain(modelMatrixSpyro[3][0], modelMatrixSpyro[3][2]);
+
 	glm::mat4 modelMatrixSpyroBody = glm::mat4(modelMatrixSpyro);
 	modelMatrixSpyroBody = glm::scale(modelMatrixSpyroBody, glm::vec3(0.015, 0.015, 0.015));
-	spyroModelAnimate.setAnimationIndex(animationIndex);
+	if(isJump)
+		spyroModelAnimate.setAnimationIndex(2);
+	else if(isRun)
+		spyroModelAnimate.setAnimationIndex(3);
+	else
+		spyroModelAnimate.setAnimationIndex(animationIndex);
 	spyroModelAnimate.render(modelMatrixSpyroBody);
 	glEnable(GL_CULL_FACE);
 
@@ -2284,10 +2492,10 @@ void renderScene(bool renderParticles) { // Render de la Escena
 	}
 	glEnable(GL_CULL_FACE);
 }
-bool buscaColliderSBB(std::string nombre) {
+bool buscaColliderSBB(std::string nombre, std::string second_nombre) {
 	for (int i = 0; i < diamantes_isVivo_Array.size(); i++) {
 		std::string nombreIterador = "diamante-" + std::to_string(i);
-		if (nombreIterador == nombre) {
+		if (nombreIterador == nombre && second_nombre == "spyro") {
 			if (diamantes_isVivo_Array[i]) {
 				diamantes_isVivo_Array[i] = false;
 				diamantesCount += 2;
@@ -2301,16 +2509,7 @@ bool buscaColliderSBB(std::string nombre) {
 bool buscaColliderOBB(std::string nombre, std::string second_nombre) {
 	for (int i = 0; i < enemigo_isVivo_Array.size(); i++) {
 		std::string nombreIterador = "enemigo-" + std::to_string(i);
-		/*
-		if (isShot && nombreIterador == nombre) {
-			enemigo_isVivo_Array[i] = false;
-			enemigo_anim_index_Array[i] = 0;
-		}
-		if (!isRayo && nombreIterador == nombre) {
-			return false;
-		}
-		*/
-		if (nombreIterador == nombre | nombreIterador == second_nombre) {
+		if (nombreIterador == nombre | second_nombre == nombreIterador) {
 			if (isShot && enemigo_isVivo_Array[i]) {
 				enemigo_isVivo_Array[i] = false;
 				enemigo_anim_index_Array[i] = 0;
@@ -2320,35 +2519,29 @@ bool buscaColliderOBB(std::string nombre, std::string second_nombre) {
 			}
 			else if (!enemigo_isVivo_Array[i])
 				return false;
-			else if (enemigo_isVivo_Array[i]) {
-				if (spyroLifeCount >= 0) {
-					spyroLifeCount -= 0.1f;
+			else if (enemigo_isVivo_Array[i] && second_nombre == "spyro") {
+				if (spyroLifeCount > 0) {
+					spyroLifeCount -= 1.0f;
 					return true;
 				}
 				else {
+					gameOver = true;
 					spyroAlive = false;
+					isJump = false;
+					isRun = false;
+					isShot = false;
 					spyroLifeCount = 0.0f;
+					vectorDirectorSpyro = glm::vec3(modelMatrixSpyro[3][0],
+						30.0f - modelMatrixSpyro[3][1],
+						modelMatrixSpyro[3][2]);
 				}
 			}
 		}
 	}
 	for (int i = 0; i < cofres_isVivo_Array.size(); i++) {
 		std::string nombreIterador = "cofre-" + std::to_string(i);
-		/*
-		if (isShot && nombreIterador == nombre) {
-			modelMatrixActiveExplosion[3][0] = CofresInitialPosition[i].x;
-			modelMatrixActiveExplosion[3][1] = CofresInitialPosition[i].y;
-			modelMatrixActiveExplosion[3][2] = CofresInitialPosition[i].z;
-			if (cofres_isVivo_Array[i] && !enableExplosion) {
-				enableExplosion = true;
-				contadorExplosion = 0.0f;
-			}
-			cofres_isVivo_Array[i] = false;
-			return false;
-		}
-		*/
-		if (nombreIterador == nombre | nombreIterador == second_nombre) {
-			if (isShot && cofres_isVivo_Array[i]) {
+		if (nombreIterador == nombre | second_nombre == nombreIterador) {
+			if (cofres_isVivo_Array[i] && (isShot | isRun)) {
 				modelMatrixActiveExplosion[3][0] = CofresInitialPosition[i].x;
 				modelMatrixActiveExplosion[3][1] = CofresInitialPosition[i].y;
 				modelMatrixActiveExplosion[3][2] = CofresInitialPosition[i].z;
@@ -2367,8 +2560,59 @@ bool buscaColliderOBB(std::string nombre, std::string second_nombre) {
 	return true;
 }
 
+bool restartSpyroInitialPosition() {
+	if (restartingCount >= 10.f) {
+		restartAllPositions();
+		return false;
+	}
+	else
+		restartingCount += deltaTime;
+	float magnitud = sqrtf(	vectorDirectorSpyro.x * vectorDirectorSpyro.x +
+							vectorDirectorSpyro.y * vectorDirectorSpyro.y +
+							vectorDirectorSpyro.z * vectorDirectorSpyro.z);
+	if (magnitud >= 0.1f) {
+		vectorDirectorSpyro = glm::vec3(vectorDirectorSpyro.x / magnitud,
+										vectorDirectorSpyro.y / magnitud,
+										vectorDirectorSpyro.z / magnitud);
+		modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(vectorDirectorSpyro.x * 0.4, vectorDirectorSpyro.y * 0.4, vectorDirectorSpyro.z * 0.4));
+		return true;
+	}
+	else
+		return true;
+}
+
+void restartAllPositions() {
+	// Reiniciar Variables Spyro
+	modelMatrixSpyro = glm::mat4(1.0f);
+	modelMatrixSpyro = glm::translate(modelMatrixSpyro, glm::vec3(0.0f, 30.0f, 0.0f));
+	isShot = false;
+	isJump = true;
+	isRun = false;
+	spyroAlive = true;
+	// Reiniciar Variables Enemigo
+	for (int i = 0; i < modelMatrixEnemigoArray.size(); i++) {
+		modelMatrixEnemigoArray[i] = glm::mat4(1.0f);
+		modelMatrixEnemigoArray[i] = glm::translate(modelMatrixEnemigoArray[i], EnemigoInitialPosition[i]);
+		enemigo_isVivo_Array[i] = true;
+	}
+	// Reiniciar Variables Cofres
+	for (int i = 0; i < modelMatrixCofresArray.size(); i++) {
+		cofres_isVivo_Array[i] = true;
+	}
+	// Reiniciar Variables Diamanes
+	for (int i = 0; i < modelMatrixDiamantesArray.size(); i++) {
+		diamantes_isVivo_Array[i] =true;
+	}
+	// Reiniciar Otras Variables
+	spyroLifeCount = 100.0f;
+	diamantesCount = 0;
+	enemigosCount = 0;
+	ready2Play = true;
+	
+}
+
 int main(int argc, char **argv) {
-	init(800, 700, "Window GLFW", false);
+	init(1920, 1080, "Spyro VS Zombies", true);
 	applicationLoop();
 	destroy();
 	return 1;
